@@ -1,5 +1,5 @@
-# Nodejs SQL Parser
-
+# Nodejs SQL converter
+<!-- 
 [![Build Status](https://travis-ci.org/taozhi8833998/node-sql-parser.svg?branch=master)](https://travis-ci.org/taozhi8833998/node-sql-parser)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/d923c9f2853f44f295c383d9943b56cc)](https://www.codacy.com/manual/taozhi8833998/node-sql-parser?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=taozhi8833998/node-sql-parser&amp;utm_campaign=Badge_Grade)
 [![Coverage Status](https://img.shields.io/coveralls/github/taozhi8833998/node-sql-parser/master.svg)](https://coveralls.io/github/taozhi8833998/node-sql-parser?branch=master)
@@ -14,7 +14,7 @@
 [![issues](https://img.shields.io/github/issues/taozhi8833998/node-sql-parser.svg)](https://github.com/taozhi8833998/node-sql-parser/issues)
 
 [![TypeScript definitions on DefinitelyTyped](http://definitelytyped.org/badges/standard.svg)](http://definitelytyped.org)
-[![license](https://img.shields.io/npm/l/node-sql-parser)](https://github.com/taozhi8833998/node-sql-parser/blob/master/LICENSE)
+[![license](https://img.shields.io/npm/l/node-sql-parser)](https://github.com/taozhi8833998/node-sql-parser/blob/master/LICENSE) -->
 
 **Parse simple SQL statements into an abstract syntax tree (AST) with the visited tableList, columnList and convert it back to SQL.**
 
@@ -31,17 +31,17 @@
 ### From [npmjs](https://www.npmjs.org/)
 
 ```bash
-npm install node-sql-parser --save
+npm install node-sql-converter --save
 
 or
 
-yarn add node-sql-parser
+yarn add node-sql-converter
 ```
 
 ### From [GitHub Package Registry](https://npm.pkg.github.com/)
 
 ```bash
-npm install @taozhi8833998/node-sql-parser --registry=https://npm.pkg.github.com/
+npm install @taozhi8833998/node-sql-converter --registry=https://npm.pkg.github.com/
 ```
 
 ### From Browser
@@ -107,7 +107,7 @@ Import the JS file in your page:
 
 ```javascript
 // import Parser for all databases
-const { Parser } = require('node-sql-parser');
+const { Parser } = require('node-sql-converter');
 const parser = new Parser();
 const ast = parser.astify('SELECT * FROM t'); // mysql sql grammer parsed by default
 
@@ -140,7 +140,7 @@ console.log(ast);
 
 #### Get node location in the AST
 ```javascript
-const { Parser } = require('node-sql-parser');
+const { Parser } = require('node-sql-converter');
 const parser = new Parser();
 const ast = parser.astify('SELECT * FROM t', { parseOptions: { includeLocations: true } });
 
@@ -229,7 +229,7 @@ const opt = {
   database: 'MySQL' // MySQL is the default database
 }
 // import mysql parser only
-const { Parser } = require('node-sql-parser');
+const { Parser } = require('node-sql-converter');
 const parser = new Parser()
 // opt is optional
 const ast = parser.astify('SELECT * FROM t', opt);
@@ -241,11 +241,11 @@ console.log(sql); // SELECT * FROM `t`
 ### Parse specified Database
 There two ways to parser the specified database.
 
-import Parser from the specified database path `node-sql-parser/build/{database}`
+import Parser from the specified database path `node-sql-converter/build/{database}`
 
 ```javascript
 // import transactsql parser only
-const { Parser } = require('node-sql-parser/build/transactsql')
+const { Parser } = require('node-sql-converter/build/transactsql')
 const parser = new Parser()
 const sql = `SELECT id FROM test AS result`
 const ast = parser.astify(sql)
@@ -258,7 +258,7 @@ const opt = {
   database: 'Postgresql'
 }
 // import all databases parser
-const { Parser } = require('node-sql-parser')
+const { Parser } = require('node-sql-converter')
 const parser = new Parser()
 // pass the opt config to the corresponding methods
 const ast = parser.astify('SELECT * FROM t', opt)
@@ -272,7 +272,7 @@ console.log(sql); // SELECT * FROM "t"
 const opt = {
   database: 'MariaDB' // MySQL is the default database
 }
-const { Parser } = require('node-sql-parser/build/mariadb');
+const { Parser } = require('node-sql-converter/build/mariadb');
 const parser = new Parser()
 // opt is optional
 const { tableList, columnList, ast } = parser.parse('SELECT * FROM t', opt);
@@ -287,7 +287,7 @@ const { tableList, columnList, ast } = parser.parse('SELECT * FROM t', opt);
 const opt = {
   database: 'MySQL'
 }
-const { Parser } = require('node-sql-parser/build/mysql');
+const { Parser } = require('node-sql-converter/build/mysql');
 const parser = new Parser();
 // opt is optional
 const tableList = parser.tableList('SELECT * FROM t', opt);
@@ -305,7 +305,7 @@ console.log(tableList); // ["select::null::t"]
 const opt = {
   database: 'MySQL'
 }
-const { Parser } = require('node-sql-parser/build/mysql');
+const { Parser } = require('node-sql-converter/build/mysql');
 const parser = new Parser();
 // opt is optional
 const columnList = parser.columnList('SELECT t.id FROM t', opt);
@@ -319,7 +319,7 @@ console.log(columnList); // ["select::t::id"]
 - `whiteListCheck` function check on `table` mode and `MySQL` database by default
 
 ```javascript
-const { Parser } = require('node-sql-parser');
+const { Parser } = require('node-sql-converter');
 const parser = new Parser();
 const sql = 'UPDATE a SET id = 1 WHERE name IN (SELECT name FROM b)'
 const whiteTableList = ['(select|update)::(.*)::(a|b)'] // array that contain multiple authorities
@@ -334,7 +334,7 @@ parser.whiteListCheck(sql, whiteTableList, opt) // if check failed, an error wou
 - check column authority
 
 ```javascript
-const { Parser } = require('node-sql-parser');
+const { Parser } = require('node-sql-converter');
 const parser = new Parser();
 const sql = 'UPDATE a SET id = 1 WHERE name IN (SELECT name FROM b)'
 const whiteColumnList = ['select::null::name', 'update::a::id'] // array that contain multiple authorities
@@ -349,46 +349,7 @@ parser.whiteListCheck(sql, whiteColumnList, opt) // if check failed, an error wo
 ## :kissing_heart: Acknowledgement
 
 This project is inspired by the SQL parser [flora-sql-parser](https://github.com/godmodelabs/flora-sql-parser) module.
-
+Also base code is dereived from [node-sql-parser](https://github.com/taozhi8833998/node-sql-parser).
 ## License
 
 [Apache-2.0](LICENSE)
-
-## Buy me a Coffee
-
-If you like my project, **Star** in the corresponding project right corner. Your support is my biggest encouragement! ^_^
-
-You can also scan the qr code below or open paypal link to donate to Author.
-
-### Paypal
-
-Donate money by [paypal](https://www.paypal.me/taozhi8833998/5) to my account [taozhi8833998@163.com](taozhi8833998@163.com)
-
-### AliPay(支付宝)
-
-<p align="center">
-    <img src="https://github.com/taozhi8833998/node-sql-parser/blob/master/img/alipay.jpg" width="300" hight="300">
-</p>
-
-
-### Wechat(微信)
-
-<p align="center">
-    <img src="https://github.com/taozhi8833998/node-sql-parser/blob/master/img/wechat_pay.jpg" width="300" hight="300">
-</p>
-
-### Explain
-
-If you have made a donation, you can leave your name and email in the issue, your name will be written to the donation list.
-
-
-## [Donation list](https://github.com/taozhi8833998/node-sql-parser/blob/master/DONATIONLIST.md)
-
-## Star History
-
-<a href="https://star-history.com/#taozhi8833998/node-sql-parser&Date">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=taozhi8833998/node-sql-parser&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=taozhi8833998/node-sql-parser&type=Date" />
-  </picture>
-</a>
