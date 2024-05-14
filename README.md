@@ -38,25 +38,19 @@ or
 yarn add node-sql-converter
 ```
 
-### From [GitHub Package Registry](https://npm.pkg.github.com/)
-
-```bash
-npm install @taozhi8833998/node-sql-converter --registry=https://npm.pkg.github.com/
-```
-
 ### From Browser
 
 Import the JS file in your page:
 
 ```javascript
 // support all database parser, but file size is about 750K
-<script src="https://unpkg.com/node-sql-parser/umd/index.umd.js"></script>
+<script src="https://unpkg.com/node-sql-converter/umd/index.umd.js"></script>
 
 // or you can import specified database parser only, it's about 150K
 
-<script src="https://unpkg.com/node-sql-parser/umd/mysql.umd.js"></script>
+<script src="https://unpkg.com/node-sql-converter/umd/mysql.umd.js"></script>
 
-<script src="https://unpkg.com/node-sql-parser/umd/postgresql.umd.js"></script>
+<script src="https://unpkg.com/node-sql-converter/umd/postgresql.umd.js"></script>
 ```
 - `NodeSQLParser` object is on `window`
 
@@ -64,12 +58,12 @@ Import the JS file in your page:
 <!DOCTYPE html>
 <html lang="en" >
   <head>
-    <title>node-sql-parser</title>
+    <title>node-sql-converter</title>
     <meta charset="utf-8" />
   </head>
   <body>
     <p><em>Check console to see the output</em></p>
-    <script src="https://unpkg.com/node-sql-parser/umd/mysql.umd.js"></script>
+    <script src="https://unpkg.com/node-sql-converter/umd/mysql.umd.js"></script>
     <script>
       window.onload = function () {
         // Example parser

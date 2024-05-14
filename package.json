@@ -1,6 +1,6 @@
 {
   "name": "node-sql-converter",
-  "version": "5.1.0",
+  "version": "5.1.1",
   "description": "node sql converter",
   "main": "index.js",
   "types": "types.d.ts",
@@ -50,7 +50,7 @@
   "bugs": {
     "url": "https://github.com/shahparth123/node-sql-converter/issues"
   },
-  "homepage": "https://github.com/taozhi8833998/node-sql-converter#readme",
+  "homepage": "https://github.com/shahparth123/node-sql-converter#readme",
   "engines": {
     "node": ">=8"
   },
