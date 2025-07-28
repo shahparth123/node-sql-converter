@@ -6,20 +6,25 @@ import { selectToSQL } from './select'
 import { setToSQL } from './update'
 
 /**
- * @param {Array} values
+ * @param {Array} stmt
  * @return {string}
  */
-function valuesToSQL(values) {
-  if (values.type === 'select') return selectToSQL(values)
-  const clauses = values.map(exprToSQL)
-  return `(${clauses.join('), (')})`
+function valuesToSQL(stmt) {
+  const { type } = stmt
+  if (type === 'select') return selectToSQL(stmt)
+  const values = type === 'values' ? stmt.values : stmt
+  const clauses = values.map(value => {
+    const sql = exprToSQL(value)
+    return [toUpper(value.prefix), `(${sql})`].filter(hasVal).join('')
+  })
+  return clauses.join(', ')
 }
 
 function partitionToSQL(partition) {
   if (!partition) return ''
   const partitionArr = ['PARTITION', '(']
   if (Array.isArray(partition)) {
-    partitionArr.push(partition.map(identifierToSql).join(', '))
+    partitionArr.push(partition.map(partitionItem => identifierToSql(partitionItem)).join(', '))
   } else {
     const { value } = partition
     partitionArr.push(value.map(exprToSQL).join(', '))
@@ -63,6 +68,7 @@ function insertToSQL(stmt) {
   const {
     table,
     type,
+    or: orExpr = [],
     prefix = 'into',
     columns,
     conflict,
@@ -74,19 +80,20 @@ function insertToSQL(stmt) {
     set,
   } = stmt
   const { keyword, set: duplicateSet } = onDuplicateUpdate || {}
-  const clauses = [toUpper(type), toUpper(prefix), tablesToSQL(table), partitionToSQL(partition)]
+  const clauses = [toUpper(type), orExpr.map(literalToSQL).join(' '), toUpper(prefix), tablesToSQL(table), partitionToSQL(partition)]
   if (Array.isArray(columns)) clauses.push(`(${columns.map(literalToSQL).join(', ')})`)
-  clauses.push(commonOptionConnector(Array.isArray(values) ? 'VALUES' : '', valuesToSQL, values))
+  clauses.push(commonOptionConnector(values && values.type === 'values' ? 'VALUES' : '', valuesToSQL, values))
   clauses.push(commonOptionConnector('ON CONFLICT', conflictToSQL, conflict))
   clauses.push(commonOptionConnector('SET', setToSQL, set))
   clauses.push(commonOptionConnector('WHERE', exprToSQL, where))
-  clauses.push(returningToSQL(returning))
   clauses.push(commonOptionConnector(keyword, setToSQL, duplicateSet))
+  clauses.push(returningToSQL(returning))
   return clauses.filter(hasVal).join(' ')
 }
 
 export {
   conflictToSQL,
   insertToSQL,
+  partitionToSQL,
   valuesToSQL,
 }

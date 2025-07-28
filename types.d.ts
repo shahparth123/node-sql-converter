@@ -44,13 +44,14 @@ export interface BaseFrom {
 export interface Join extends BaseFrom {
   join: "INNER JOIN" | "LEFT JOIN" | "RIGHT JOIN";
   using?: string[];
-  on?: Expr;
+  on?: Binary;
 }
 export interface TableExpr {
   expr: {
     ast: Select;
   };
   as?: string | null;
+  parentheses: boolean | { length: number }
 }
 export interface Dual {
   type: "dual";
@@ -92,18 +93,31 @@ export interface ValueExpr<T = string | number | boolean> {
     | "origin"
     | "date"
     | "datetime"
+    | "default"
     | "time"
     | "timestamp"
     | "var_string";
   value: T;
 }
 
-export interface ColumnRef {
+export type SortDirection = 'ASC' | 'DESC';
+
+export interface ColumnRefItem {
   type: "column_ref";
   table: string | null;
   column: string | { expr: ValueExpr };
+  options?: ExprList;
   loc?: LocationRange;
+  collate?: { collate: CollateExpr };
+  order_by?: SortDirection | null;
 }
+export interface ColumnRefExpr {
+  type: "expr";
+  expr: ColumnRefItem;
+  as: string | null;
+}
+
+export type ColumnRef = ColumnRefItem | ColumnRefExpr;
 export interface SetList {
   column: string;
   value: any;
@@ -126,7 +140,7 @@ export interface Case {
   expr: null;
   args: Array<
     | {
-        cond: Expr;
+        cond: Binary;
         result: ExpressionValue;
         type: "when";
       }
@@ -139,12 +153,12 @@ export interface Case {
 export interface Cast {
   type: "cast";
   keyword: "cast";
-  expr: Expr;
+  expr: ExpressionValue;
   symbol: "as";
   target: {
     dataType: string;
-    suffix: unknown[];
-  };
+    quoted?: string;
+  }[];
 }
 export interface AggrFunc {
   type: "aggr_func";
@@ -171,7 +185,7 @@ export interface Function {
 }
 export interface Column {
   expr: ExpressionValue;
-  as: string | null;
+  as: ValueExpr<string> | string | null;
   type?: string;
   loc?: LocationRange;
 }
@@ -186,6 +200,17 @@ export type Param = { type: "param"; value: string; loc?: LocationRange };
 
 export type Value = { type: string; value: any; loc?: LocationRange };
 
+export type Binary = {
+  type: "binary_expr";
+  operator: string;
+  left: ExpressionValue | ExprList;
+  right: ExpressionValue | ExprList;
+  loc?: LocationRange;
+  parentheses?: boolean;
+};
+
+export type Expr = Binary;
+
 export type ExpressionValue =
   | ColumnRef
   | Param
@@ -193,69 +218,98 @@ export type ExpressionValue =
   | Case
   | AggrFunc
   | Value
+  | Binary
   | Cast
   | Interval;
-export type Expr =
-  | {
-      type: "binary_expr";
-      operator: "AND" | "OR";
-      left: Expr;
-      right: Expr;
-      loc?: LocationRange;
-    }
-  | {
-      type: "binary_expr";
-      operator: string;
-      left: ExpressionValue;
-      right: ExpressionValue | ExprList;
-      loc?: LocationRange;
-    };
 
 export type ExprList = {
   type: "expr_list";
   value: ExpressionValue[];
   loc?: LocationRange;
+  parentheses?: boolean;
+  separator?: string;
 };
+
+export type PartitionBy = {
+  type: 'expr';
+  expr: ColumnRef[];
+}[];
+
+export type WindowSpec = {
+  name: null;
+  partitionby: PartitionBy;
+  orderby: OrderBy[] | null;
+  window_frame_clause: string | null; };
+
+export type AsWindowSpec = string | { window_specification: WindowSpec; parentheses: boolean };
+
+export type NamedWindowExpr = {
+  name: string;
+  as_window_specification: AsWindowSpec;
+};
+
+export type WindowExpr = {
+  keyword: 'window';
+  type: 'window',
+  expr: NamedWindowExpr[];
+};
+
 export interface Select {
   with: With[] | null;
   type: "select";
   options: any[] | null;
   distinct: "DISTINCT" | null;
   columns: any[] | Column[];
-  from: From[] | null;
-  where: Expr | Function | null;
-  groupby: ColumnRef[] | null;
+  from: From[] | TableExpr | null ;
+  where: Binary | Function | null;
+  groupby: { columns: ColumnRef[] | null, modifiers: ValueExpr<string>[] };
   having: any[] | null;
   orderby: OrderBy[] | null;
   limit: Limit | null;
+  window?: WindowExpr;
+  qualify?: any[] | null;
   _orderby?: OrderBy[] | null;
   _limit?: Limit | null;
   parentheses_symbol?: boolean;
   _parentheses?: boolean;
   loc?: LocationRange;
+  _next?: Select;
+  set_op?: string;
 }
 export interface Insert_Replace {
   type: "replace" | "insert";
-  db: string | null;
   table: any;
   columns: string[] | null;
-  values: InsertReplaceValue[];
+  values: InsertReplaceValue[] | Select;
+  partition: any[];
+  prefix: string;
+  on_duplicate_update: {
+    keyword: "on duplicate key update",
+    set: SetList[];
+  };
   loc?: LocationRange;
+  returning?: Returning
+}
+export interface Returning {
+  type: 'returning';
+  columns: ColumnRef | Select;
 }
 export interface Update {
   type: "update";
   db: string | null;
   table: Array<From | Dual> | null;
   set: SetList[];
-  where: Expr | Function | null;
+  where: Binary | Function | null;
   loc?: LocationRange;
+  returning?: Returning
 }
 export interface Delete {
   type: "delete";
   table: any;
   from: Array<From | Dual>;
-  where: Expr | Function | null;
+  where: Binary | Function | null;
   loc?: LocationRange;
+  returning?: Returning
 }
 
 export interface Alter {
@@ -293,8 +347,10 @@ type DataType = {
   dataType: string;
   length?: number;
   parentheses?: true;
+  scale?: number;
   suffix?: Timezone | (KW_UNSIGNED | KW_ZEROFILL)[];
   array?: "one" | "two";
+  expr?: Expr | ExprList;
 };
 
 type LiteralNotNull = {
@@ -302,7 +358,7 @@ type LiteralNotNull = {
   value: "not null";
 };
 
-type LiteralNull = { type: "null"; value: null };
+type LiteralNull = { type: "null"; value: null | "null" };
 
 type LiteralNumeric = number | { type: "bigint"; value: string };
 
@@ -423,7 +479,7 @@ type CreateDefinition =
 
 export interface Create {
   type: "create";
-  keyword: "table" | "index" | "database";
+  keyword: "aggregate" | "table" | "trigger" | "extension" | "function" | "index" | "database" | "schema" | "view" | "domain" | "type" | "user";
   temporary?: "temporary" | null;
   table?: { db: string; table: string }[];
   if_not_exists?: "if not exists" | null;

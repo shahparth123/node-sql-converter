@@ -175,8 +175,8 @@ describe('Command SQL', () => {
     it('should change column', () => {
       expect(getParsedSql('alter table places change city city2 varchar(255)'))
         .to.equal('ALTER TABLE `places` CHANGE `city` `city2` VARCHAR(255)');
-      expect(getParsedSql('alter table places change city city2 varchar(255) first city'))
-        .to.equal('ALTER TABLE `places` CHANGE `city` `city2` VARCHAR(255) FIRST `city`');
+      expect(getParsedSql('alter table places change city city2 varchar(255) first'))
+        .to.equal('ALTER TABLE `places` CHANGE `city` `city2` VARCHAR(255) FIRST');
     })
 
     it('should support alter column with algorithm and lock option', () => {
@@ -232,7 +232,7 @@ describe('Command SQL', () => {
     })
 
     it(`should support MySQL alter drop check and column`, () => {
-      KEYWORDS.concat(['CHECK ']).forEach(keyword => {
+      KEYWORDS.concat(['CHECK ', 'CONSTRAINT ']).forEach(keyword => {
         expect(getParsedSql(`alter table a drop ${keyword}xxx`))
         .to.equal(`ALTER TABLE \`a\` DROP ${keyword}\`xxx\``);
         expect(getParsedSql(`alter table a drop ${keyword}xxx, drop ${keyword}yyy`))

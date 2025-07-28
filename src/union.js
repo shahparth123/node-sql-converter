@@ -1,6 +1,8 @@
 import { alterToSQL } from './alter'
 import { analyzeToSQL, attachToSQL } from './analyze'
 import { createToSQL } from './create'
+import { commentOnToSQL } from './comment'
+import { explainToSQL } from './explain'
 import { selectToSQL } from './select'
 import { deleteToSQL } from './delete'
 import { updateToSQL } from './update'
@@ -24,6 +26,7 @@ import {
 import { execToSQL } from './exec'
 import { orderOrPartitionByToSQL } from './expr'
 import { limitToSQL } from './limit'
+import { loadDataToSQL } from './load'
 import { procToSQL } from './proc'
 import { transactionToSQL } from './transaction'
 import { showToSQL } from './show'
@@ -34,15 +37,18 @@ const typeToSQLFn = {
   analyze     : analyzeToSQL,
   attach      : attachToSQL,
   create      : createToSQL,
+  comment     : commentOnToSQL,
   select      : selectToSQL,
   deallocate  : deallocateToSQL,
   delete      : deleteToSQL,
   exec        : execToSQL,
   execute     : executeToSQL,
+  explain     : explainToSQL,
   for         : forLoopToSQL,
   update      : updateToSQL,
   if          : ifToSQL,
   insert      : insertToSQL,
+  load_data   : loadDataToSQL,
   drop        : commonCmdToSQL,
   truncate    : commonCmdToSQL,
   replace     : insertToSQL,

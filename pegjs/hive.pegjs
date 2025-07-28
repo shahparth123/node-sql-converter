@@ -285,18 +285,19 @@ if_not_exists_stmt
 
 create_db_stmt
   = a:KW_CREATE __
-    k:(KW_DATABASE / KW_SCHEME) __
+    k:(KW_DATABASE / KW_SCHEMA) __
     ife:if_not_exists_stmt? __
-    t:ident_name __
+    t:proc_func_name __
     c:create_db_definition? {
+      const keyword = k.toLowerCase()
       return {
         tableList: Array.from(tableList),
         columnList: columnListTableAlias(columnList),
         ast: {
           type: a[0].toLowerCase(),
-          keyword: 'database',
+          keyword,
           if_not_exists:ife,
-          database: t,
+          [keyword]: { db: t.schema, schema: t.name },
           create_definitions: c,
         }
       }
@@ -438,10 +439,14 @@ create_column_definition
     }
 
 collate_expr
-  = KW_COLLATE __ ca:ident_name {
+  = KW_COLLATE __ s:KW_ASSIGIN_EQUAL? __ ca:ident {
     return {
       type: 'collate',
-      value: ca,
+      keyword: 'collate',
+      collate: {
+        name: ca,
+        symbol: s,
+      }
     }
   }
 column_format
@@ -459,7 +464,7 @@ storage
     }
   }
 default_expr
-  = KW_DEFAULT __ ce: (literal / expr) {
+  = KW_DEFAULT __ ce:expr {
     return {
       type: 'default',
       value: ce
@@ -791,7 +796,7 @@ create_option_character_set_kw
     return 'CHARACTER SET'
   }
 create_option_character_set
-  = kw:KW_DEFAULT? __ t:(create_option_character_set_kw / 'CHARSET'i / 'COLLATE'i) __ s:(KW_ASSIGIN_EQUAL)? __ v:ident_name {
+  = kw:KW_DEFAULT? __ t:(create_option_character_set_kw / 'CHARSET'i / 'COLLATE'i) __ s:(KW_ASSIGIN_EQUAL)? __ v:ident_without_kw_type {
     return {
       keyword: kw && `${kw[0].toLowerCase()} ${t.toLowerCase()}` || t.toLowerCase(),
       symbol: s,
@@ -860,13 +865,14 @@ rename_stmt
 set_stmt
   = KW_SET __
   kw: (KW_GLOBAL / KW_SESSION / KW_LOCAL / KW_PERSIST / KW_PERSIST_ONLY)? __
-  a: assign_stmt {
+  a: assign_stmt_list {
     a.keyword = kw
     return {
       tableList: Array.from(tableList),
       columnList: columnListTableAlias(columnList),
       ast: {
         type: 'set',
+        keyword: kw,
         expr: a
       }
     }
@@ -951,9 +957,9 @@ with_clause
   = KW_WITH __ head:cte_definition tail:(__ COMMA __ cte_definition)* {
       return createList(head, tail);
     }
-  / __ KW_WITH __ KW_RECURSIVE __ cte:cte_definition {
+  / __ KW_WITH __ KW_RECURSIVE __ cte:cte_definition tail:(__ COMMA __ cte_definition)* {
       cte.recursive = true;
-      return [cte]
+      return createList(cte, tail);
     }
 
 cte_definition
@@ -1066,6 +1072,9 @@ column_list_item
       };
     }
   / e:expr_item __ alias:alias_clause? {
+      if (e.type === 'double_quote_string' || e.type === 'single_quote_string') {
+        columnList.add(`select::null::${e.value}`)
+      }
       return { type: 'expr', expr: e, as: alias };
     }
 
@@ -1146,7 +1155,7 @@ table_ref
 
 
 table_join
-  = op:join_op __ t:table_base __ KW_USING __ LPAREN __ head:ident_name tail:(__ COMMA __ ident_name)* __ RPAREN {
+  = op:join_op __ t:table_base __ KW_USING __ LPAREN __ head:ident_without_kw_type tail:(__ COMMA __ ident_without_kw_type)* __ RPAREN {
       t.join = op;
       t.using = createList(head, tail);
       return t;
@@ -1156,7 +1165,7 @@ table_join
       t.on   = expr;
       return t;
     }
-  / op:join_op __ LPAREN __ stmt:union_stmt __ RPAREN __ alias:alias_clause? __ expr:on_clause? {
+  / op:(join_op / set_op) __ LPAREN __ stmt:union_stmt __ RPAREN __ alias:alias_clause? __ expr:on_clause? {
     stmt.parentheses = true;
     return {
       expr: stmt,
@@ -1232,7 +1241,11 @@ where_clause
   = KW_WHERE __ e:or_and_where_expr { return e; }
 
 group_by_clause
-  = KW_GROUP __ KW_BY __ e:expr_list { return e.value; }
+  = KW_GROUP __ KW_BY __ e:expr_list {
+    return {
+      columns: e.value
+    }
+  }
 
 column_ref_list
   = head:column_ref tail:(__ COMMA __ column_ref)* {
@@ -1276,10 +1289,21 @@ window_specification_frameless
 
 window_frame_clause
   = kw:KW_ROWS __ s:(window_frame_following / window_frame_preceding) {
-    return `rows ${s.value}`
+    return {
+      type: 'rows',
+      expr: s
+    }
   }
-  / KW_ROWS __ KW_BETWEEN __ p:window_frame_preceding __ KW_AND __ f:window_frame_following {
-    return `rows between ${p.value} and ${f.value}`
+  / KW_ROWS __ op:KW_BETWEEN __ p:window_frame_preceding __ KW_AND __ f:window_frame_following {
+    const left = {
+      type: 'origin',
+      value: 'rows',
+    }
+    const right = {
+      type: 'expr_list',
+      value: [p, f]
+    }
+    return createBinaryExpr(op, left, right)
   }
 
 window_frame_following
@@ -1291,23 +1315,21 @@ window_frame_following
   / window_frame_current_row
 
 window_frame_preceding
-  = s:window_frame_value __ 'PRECEDING'i  {
+  = s:window_frame_value __ k:('PRECEDING'i / 'FOLLOWING'i)  {
     // => string
-    s.value += ' PRECEDING'
+    s.value += ` ${k.toUpperCase()}`
     return s
   }
   / window_frame_current_row
 
 window_frame_current_row
   = 'CURRENT'i __ 'ROW'i {
-    // => { type: 'single_quote_string'; value: string }
-    return { type: 'single_quote_string', value: 'current row' }
+    return { type: 'origin', value: 'current row' }
   }
 
 window_frame_value
   = s:'UNBOUNDED'i {
-    // => literal_string
-    return { type: 'single_quote_string', value: s.toUpperCase() }
+    return { type: 'origin', value: s.toUpperCase() }
   }
   / literal_numeric
 
@@ -1418,7 +1440,7 @@ set_list
  * 'col1 = (col2 > 3)'
  */
 set_item
-  = tbl:(ident __ DOT)? __ c:column_without_kw __ '=' __ v:additive_expr {
+  = tbl:(ident __ DOT)? __ c:column_without_kw __ '=' __ v:expr {
       return { column: c, value: v, table: tbl && tbl[0] };
     }
   / tbl:(ident __ DOT)? __ c:column_without_kw __ '=' __ KW_VALUES __ LPAREN __ v:column_ref __ RPAREN {
@@ -1450,8 +1472,8 @@ replace_insert_stmt
       }
       if (c) {
         let table = t && t.table || null
-        if(Array.isArray(v)) {
-          v.forEach((row, idx) => {
+        if(Array.isArray(v.values)) {
+          v.values.forEach((row, idx) => {
             if(row.value.length != c.length) {
               throw new Error(`Error: column count doesn't match value count at row ${idx+1}`)
             }
@@ -1506,7 +1528,7 @@ replace_insert
   / KW_REPLACE  { return 'replace'; }
 
 value_clause
-  = KW_VALUES __ l:value_list  { return l; }
+  = KW_VALUES __ l:value_list  { return { type: 'values', values: l } }
 
 value_list
   = head:value_item tail:(__ COMMA __ value_item)* {
@@ -1744,13 +1766,17 @@ in_op_right
   = op:in_op __ LPAREN  __ l:expr_list __ RPAREN {
       return { op: op, right: l };
     }
-  / op:in_op __ e:(var_decl / literal_string) {
+  / op:in_op __ e:(var_decl / literal_string / func_call) {
       return { op: op, right: e };
     }
 
 additive_expr
   = head:multiplicative_expr
     tail:(__ additive_operator  __ multiplicative_expr)* {
+      if (tail && tail.length && head.type === 'column_ref' && head.column === '*') throw new Error(JSON.stringify({
+        message: 'args could not be star column in additive expr',
+        ...getLocationObject(),
+      }))
       return createBinaryExprChain(head, tail);
     }
 
@@ -1769,10 +1795,10 @@ multiplicative_operator
 primary
   = cast_expr
   / literal
+  / interval_expr
   / aggr_func
   / func_call
   / case_expr
-  / interval_expr
   / c:column_ref __ a:array_index_list {
     // => column_ref
     c.array_index = a
@@ -1797,20 +1823,22 @@ unary_operator
   = '!' / '-' / '+' / '~'
 
 column_ref
-  = tbl:ident __ DOT __ col:column {
+  = tbl:ident __ DOT __ col:column ce:(__ collate_expr)? {
       columnList.add(`select::${tbl}::${col}`);
       return {
         type: 'column_ref',
         table: tbl,
-        column: col
+        column: col,
+        collate: ce && ce[1],
       };
     }
-  / col:column {
+  / col:column ce:(__ collate_expr)? {
       columnList.add(`select::null::${col}`);
       return {
         type: 'column_ref',
         table: null,
-        column: col
+        column: col,
+        collate: ce && ce[1],
       };
     }
 
@@ -1896,12 +1924,12 @@ column_name
 ident_name
   =  start:ident_start parts:ident_part* { return start + parts.join(''); }
 
-ident_start = [A-Za-z_]
+ident_start = [A-Za-z_\u4e00-\u9fa5]
 
-ident_part  = [A-Za-z0-9_]
+ident_part  = [A-Za-z0-9_$\u4e00-\u9fa5\u00C0-\u017F]
 
 // to support column name like `cf1:name` in hbase
-column_part  = [A-Za-z0-9_:]
+column_part  = [A-Za-z0-9_:\u4e00-\u9fa5\u00C0-\u017F]
 
 param
   = l:(':' ident_name) {
@@ -1995,14 +2023,16 @@ func_call
         type: 'function',
         name: { name: [{ type: 'default', value: name }] },
         args: l ? l: { type: 'expr_list', value: [] },
-        over: bc
+        over: bc,
+        ...getLocationObject(),
       };
     }
   / f:scalar_time_func __ up:on_update_current_timestamp? {
     return {
         type: 'function',
         name: { name: [{ type: 'origin', value: f }] },
-        over: up
+        over: up,
+        ...getLocationObject(),
     }
   }
   / name:(KW_DATE / KW_TIME / KW_TIMESTAMP / 'AT TIME ZONE'i) __ l:or_and_where_expr? __ bc:over_partition? {
@@ -2013,6 +2043,7 @@ func_call
         args: l ? l: { type: 'expr_list', value: [] },
         over: bc,
         args_parentheses: false,
+        ...getLocationObject(),
       };
   }
   / name:proc_func_name __ LPAREN __ l:or_and_where_expr? __ RPAREN __ bc:over_partition? {
@@ -2021,7 +2052,8 @@ func_call
         type: 'function',
         name: name,
         args: l ? l: { type: 'expr_list', value: [] },
-        over: bc
+        over: bc,
+        ...getLocationObject(),
       };
     }
 scalar_time_func
@@ -2042,7 +2074,7 @@ cast_expr
       keyword: c.toLowerCase(),
       expr: e,
       symbol: 'as',
-      target: t
+      target: [t]
     };
   }
   / c:KW_CAST __ LPAREN __ e:expr __ KW_AS __ KW_DECIMAL __ LPAREN __ precision:int __ RPAREN __ RPAREN {
@@ -2051,9 +2083,9 @@ cast_expr
       keyword: c.toLowerCase(),
       expr: e,
       symbol: 'as',
-      target: {
+      target: [{
         dataType: 'DECIMAL(' + precision + ')'
-      }
+      }]
     };
   }
   / c:KW_CAST __ LPAREN __ e:expr __ KW_AS __ KW_DECIMAL __ LPAREN __ precision:int __ COMMA __ scale:int __ RPAREN __ RPAREN {
@@ -2062,9 +2094,9 @@ cast_expr
         keyword: c.toLowerCase(),
         expr: e,
         symbol: 'as',
-        target: {
+        target: [{
           dataType: 'DECIMAL(' + precision + ', ' + scale + ')'
-        }
+        }]
       };
     }
   / c:KW_CAST __ LPAREN __ e:expr __ KW_AS __ s:signedness __ t:KW_INTEGER? __ RPAREN { /* MySQL cast to un-/signed integer */
@@ -2073,9 +2105,9 @@ cast_expr
       keyword: c.toLowerCase(),
       expr: e,
       symbol: 'as',
-      target: {
+      target: [{
         dataType: s + (t ? ' ' + t: '')
-      }
+      }]
     };
   }
 
@@ -2193,7 +2225,7 @@ number
       type: 'bigint',
       value: numStr
     }
-    return parseFloat(numStr);
+    return parseFloat(numStr).toFixed(frac.length - 1);
   }
   / int_:int exp:exp {
     const numStr = int_ + exp
@@ -2214,7 +2246,7 @@ int
   = digits
   / digit:digit
   / op:("-" / "+" ) digits:digits { return op + digits; }
-   / op:("-" / "+" ) digit:digit { return op + digit; }
+  / op:("-" / "+" ) digit:digit { return op + digit; }
 
 frac
   = "." digits:digits { return "." + digits; }
@@ -2251,7 +2283,7 @@ KW_CREATE   = "CREATE"i     !ident_start
 KW_TEMPORARY = "TEMPORARY"i !ident_start
 KW_DELETE   = "DELETE"i     !ident_start
 KW_INSERT   = "INSERT"i     !ident_start
-KW_RECURSIVE= "RECURSIVE"   !ident_start
+KW_RECURSIVE= "RECURSIVE"i   !ident_start
 KW_REPLACE  = "REPLACE"i    !ident_start
 KW_RENAME   = "RENAME"i     !ident_start
 KW_IGNORE   = "IGNORE"i     !ident_start
@@ -2269,7 +2301,7 @@ KW_AS       = "AS"i         !ident_start
 KW_TABLE    = "TABLE"i      !ident_start { return 'TABLE'; }
 KW_TABLES   = "TABLES"i     !ident_start { return 'TABLES'; }
 KW_DATABASE = "DATABASE"i      !ident_start { return 'DATABASE'; }
-KW_SCHEME   = "SCHEME"i      !ident_start { return 'SCHEME'; }
+KW_SCHEMA   = "SCHEMA"i      !ident_start { return 'SCHEMA'; }
 KW_COLLATE  = "COLLATE"i    !ident_start { return 'COLLATE'; }
 
 KW_ON       = "ON"i       !ident_start
@@ -2487,6 +2519,11 @@ proc_stmt
       return { stmt: s, vars: varList };
     }
 
+assign_stmt_list
+  = head:assign_stmt tail:(__ COMMA __ assign_stmt)* {
+    return createList(head, tail);
+  }
+
 assign_stmt
   = va:(var_decl / without_prefix_var_decl) __ s: (KW_ASSIGN / KW_ASSIGIN_EQUAL) __ e:proc_expr {
     return {
@@ -2561,14 +2598,16 @@ proc_func_call
         args: {
           type: 'expr_list',
           value: l
-        }
+        },
+        ...getLocationObject(),
       };
     }
   / name:proc_func_name {
     return {
         type: 'function',
         name: name,
-        args: null
+        args: null,
+        ...getLocationObject(),
       };
   }
 

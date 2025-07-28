@@ -16,6 +16,7 @@ import {
   commentToSQL,
   commonTypeValue,
   dataTypeToSQL,
+  getParserOpt,
   toUpper,
   hasVal,
   identifierToSql,
@@ -71,11 +72,13 @@ function createTableToSQL(stmt) {
     create_definitions: createDefinition,
     table_options: tableOptions,
     ignore_replace: ignoreReplace,
-    or_replace: orReplace,
+    replace: orReplace,
     partition_of: partitionOf,
     query_expr: queryExpr,
+    unlogged: unLogged,
+    with: withExpr,
   } = stmt
-  const sql = [toUpper(type), toUpper(orReplace), toUpper(temporary), toUpper(keyword), toUpper(ifNotExists), tablesToSQL(table)]
+  const sql = [toUpper(type), toUpper(orReplace), toUpper(temporary), toUpper(unLogged), toUpper(keyword), toUpper(ifNotExists), tablesToSQL(table)]
   if (like) {
     const { type: likeType, table: likeTable } = like
     const likeTableName = tablesToSQL(likeTable)
@@ -84,7 +87,15 @@ function createTableToSQL(stmt) {
   }
   if (partitionOf) return sql.concat([createTablePartitionOfToSQL(partitionOf)]).filter(hasVal).join(' ')
   if (createDefinition) sql.push(`(${createDefinition.map(createDefinitionToSQL).join(', ')})`)
-  if (tableOptions) sql.push(tableOptions.map(tableOptionToSQL).join(' '))
+  if (tableOptions) {
+    const { database } = getParserOpt()
+    const symbol = database && database.toLowerCase() === 'sqlite' ? ', ' : ' '
+    sql.push(tableOptions.map(tableOptionToSQL).join(symbol))
+  }
+  if (withExpr) {
+    const withSQL = withExpr.map(withExprItem => [literalToSQL(withExprItem.keyword), toUpper(withExprItem.symbol), literalToSQL(withExprItem.value)].join(' ')).join(', ')
+    sql.push(`WITH (${withSQL})`)
+  }
   sql.push(toUpper(ignoreReplace), toUpper(as))
   if (queryExpr) sql.push(unionToSQL(queryExpr))
   return sql.filter(hasVal).join(' ')
@@ -99,7 +110,7 @@ function createTriggerToSQL(stmt) {
     order: triggerOrder, time: triggerTime, when,
   } = stmt
   const sql = [
-    toUpper(type), toUpper(temporary), definer, toUpper(keyword),
+    toUpper(type), toUpper(temporary), exprToSQL(definer), toUpper(keyword),
     toUpper(ife), tableToSQL(trigger),
     toUpper(triggerTime),
     triggerEvents.map(event => {
@@ -167,15 +178,19 @@ function createExtensionToSQL(stmt) {
 
 function createIndexToSQL(stmt) {
   const {
-    concurrently, filestream_on: fileStream, keyword, include, index_columns: indexColumns,
+    concurrently, filestream_on: fileStream, keyword, if_not_exists: ifNotExists, include, index_columns: indexColumns,
     index_type: indexType, index_using: indexUsing, index, on, index_options: indexOpt, algorithm_option: algorithmOpt, lock_option: lockOpt, on_kw: onKw, table, tablespace, type, where,
     with: withExpr, with_before_where: withBeforeWhere,
   } = stmt
   const withIndexOpt = withExpr && `WITH (${indexOptionListToSQL(withExpr).join(', ')})`
-  const includeColumns = include && `${toUpper(include.keyword)} (${include.columns.map(col => identifierToSql(col)).join(', ')})`
+  const includeColumns = include && `${toUpper(include.keyword)} (${include.columns.map(col => (typeof col === 'string' ? identifierToSql(col) : exprToSQL(col))).join(', ')})`
+  let indexName = index
+  if (index) {
+    indexName = typeof index === 'string' ? identifierToSql(index) : [identifierToSql(index.schema), identifierToSql(index.name)].filter(hasVal).join('.')
+  }
   const sql = [
-    toUpper(type), toUpper(indexType), toUpper(keyword), toUpper(concurrently),
-    identifierToSql(index), toUpper(onKw), tableToSQL(table), ...indexTypeToSQL(indexUsing),
+    toUpper(type), toUpper(indexType), toUpper(keyword), toUpper(ifNotExists), toUpper(concurrently),
+    indexName, toUpper(onKw), tableToSQL(table), ...indexTypeToSQL(indexUsing),
     `(${columnOrderListToSQL(indexColumns)})`, includeColumns, indexOptionListToSQL(indexOpt).join(' '), alterExprToSQL(algorithmOpt), alterExprToSQL(lockOpt),
     commonOptionConnector('TABLESPACE', literalToSQL, tablespace),
   ]
@@ -205,17 +220,20 @@ function createSequenceToSQL(stmt) {
   return sql.filter(hasVal).join(' ')
 }
 
-function createDatabaseToSQL(stmt) {
+function createDatabaseOrSchemaToSQL(stmt) {
   const {
-    type, keyword, database,
+    type, keyword, replace,
     if_not_exists: ifNotExists,
     create_definitions: createDefinition,
   } = stmt
+  const { db, schema } = stmt[keyword]
+  const name = [literalToSQL(db), schema.map(literalToSQL).join('.')].filter(hasVal).join('.')
   const sql = [
     toUpper(type),
+    toUpper(replace),
     toUpper(keyword),
     toUpper(ifNotExists),
-    columnIdentifierToSql(database),
+    name,
   ]
   if (createDefinition) sql.push(createDefinition.map(tableOptionToSQL).join(' '))
   return sql.filter(hasVal).join(' ')
@@ -227,15 +245,15 @@ function createViewToSQL(stmt) {
     recursive, replace, select, sql_security: sqlSecurity,
     temporary, type, view, with: withClause, with_options: withOptions,
   } = stmt
-  const { db, view: name } = view
-  const viewName = [identifierToSql(db), identifierToSql(name)].filter(hasVal).join('.')
+  const { db, schema, view: name } = view
+  const viewName = [identifierToSql(db), identifierToSql(schema), identifierToSql(name)].filter(hasVal).join('.')
   const sql = [
     toUpper(type),
     toUpper(replace),
     toUpper(temporary),
     toUpper(recursive),
     algorithm && `ALGORITHM = ${toUpper(algorithm)}`,
-    definer,
+    exprToSQL(definer),
     sqlSecurity && `SQL SECURITY ${toUpper(sqlSecurity)}`,
     toUpper(keyword),
     toUpper(ifNotExists),
@@ -267,7 +285,7 @@ function createDomainToSQL(stmt) {
       const definitionType = definition.type
       switch (definitionType) {
         case 'collate':
-          definitionSQL.push(commonTypeValue(definition).join(' '))
+          definitionSQL.push(exprToSQL(definition))
           break
         case 'default':
           definitionSQL.push(toUpper(definitionType), exprToSQL(definition.value))
@@ -295,7 +313,11 @@ function createTypeToSQL(stmt) {
     const definitionSQL = []
     switch (resource) {
       case 'enum':
+      case 'range':
         definitionSQL.push(exprToSQL(createDefinition))
+        break
+      default:
+        definitionSQL.push(`(${createDefinition.map(createDefinitionToSQL).join(', ')})`)
         break
     }
     sql.push(definitionSQL.filter(hasVal).join(' '))
@@ -324,6 +346,8 @@ function createFunctionOptionToSQL(stmt) {
       return [toUpper(type), stmt.symbol, unionToSQL(stmt.declare), toUpper(stmt.begin), multipleToSQL(stmt.expr), toUpper(stmt.end), stmt.symbol].filter(hasVal).join(' ')
     case 'set':
       return [toUpper(type), stmt.parameter, toUpper(stmt.value && stmt.value.prefix), stmt.value && stmt.value.expr.map(exprToSQL).join(', ')].filter(hasVal).join(' ')
+    case 'return':
+      return [toUpper(type), exprToSQL(stmt.expr)].filter(hasVal).join(' ')
     default:
       return exprToSQL(stmt)
   }
@@ -331,7 +355,7 @@ function createFunctionOptionToSQL(stmt) {
 function createFunctionToSQL(stmt) {
   const { type, replace, keyword, name, args, returns, options, last } = stmt
   const sql = [toUpper(type), toUpper(replace), toUpper(keyword)]
-  const functionName = [identifierToSql(name.schema), name.name].filter(hasVal).join('.')
+  const functionName = [literalToSQL(name.schema), name.name.map(literalToSQL).join('.')].filter(hasVal).join('.')
   const argsSQL = args.map(alterArgsToSQL).filter(hasVal).join(', ')
   sql.push(`${functionName}(${argsSQL})`, createFunctionReturnsToSQL(returns), options.map(createFunctionOptionToSQL).join(' '), last)
   return sql.filter(hasVal).join(' ')
@@ -412,7 +436,8 @@ function createToSQL(stmt) {
       sql = createSequenceToSQL(stmt)
       break
     case 'database':
-      sql = createDatabaseToSQL(stmt)
+    case 'schema':
+      sql = createDatabaseOrSchemaToSQL(stmt)
       break
     case 'view':
       sql = createViewToSQL(stmt)

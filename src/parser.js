@@ -1,3 +1,4 @@
+import { columnToSQL, getDual } from './column'
 import { exprToSQL } from './expr'
 import parsers from './parser.all'
 import astToSQL from './sql'
@@ -19,6 +20,13 @@ class Parser {
     return exprToSQL(expr)
   }
 
+  columnsToSQL(columns, tables, opt = DEFAULT_OPT) {
+    setParserOpt(opt)
+    if (!columns || columns === '*') return []
+    const isDual = getDual(tables)
+    return columns.map(col => columnToSQL(col, isDual))
+  }
+
   parse(sql, opt = DEFAULT_OPT) {
     const { database = (PARSER_NAME || 'mysql') } = opt
     setParserOpt(opt)
@@ -38,7 +46,7 @@ class Parser {
     for (const authority of authorityList) {
       let hasCorrespondingAuthority = false
       for (const whiteAuthority of whiteList) {
-        const regex = new RegExp(whiteAuthority, 'i')
+        const regex = new RegExp(`^${whiteAuthority}$`, 'i')
         if (regex.test(authority)) {
           hasCorrespondingAuthority = true
           break

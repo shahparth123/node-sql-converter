@@ -1,5 +1,6 @@
-import { exprToSQL } from './expr'
-import { commonOptionConnector, commonTypeValue, hasVal, identifierToSql, literalToSQL, toUpper } from './util'
+import { arrayIndexToSQL, columnOffsetToSQL } from './column'
+import { exprToSQL, orderOrPartitionByToSQL } from './expr'
+import { hasVal, identifierToSql, literalToSQL, toUpper } from './util'
 import { overToSQL } from './over'
 
 function anyValueFuncToSQL(stmt) {
@@ -14,35 +15,46 @@ function anyValueFuncToSQL(stmt) {
 
 function arrayDimensionToSymbol(target) {
   if (!target || !target.array) return ''
-  switch (target.array) {
-    case 'one':
-      return '[]'
-    case 'two':
-      return '[][]'
+  const { keyword } = target.array
+  if (keyword) return toUpper(keyword)
+  const { dimension, length } = target.array
+  const result = []
+  for (let i = 0; i < dimension; i++) {
+    result.push('[')
+    if (length && length[i]) result.push(literalToSQL(length[i]))
+    result.push(']')
   }
+  return result.join('')
 }
 
 function castToSQL(expr) {
-  const { arrows = [], collate, target, expr: expression, keyword, symbol, as: alias, properties = [] } = expr
-  const { length, dataType, parentheses, quoted, scale, suffix: dataTypeSuffix, expr: targetExpr } = target
-  let str = targetExpr ? exprToSQL(targetExpr) : ''
-  if (length != null) str = scale ? `${length}, ${scale}` : length
-  if (parentheses) str = `(${str})`
-  if (dataTypeSuffix && dataTypeSuffix.length) str += ` ${dataTypeSuffix.join(' ')}`
-  let prefix = exprToSQL(expression)
-  let symbolChar = '::'
-  let suffix = ''
-  if (symbol === 'as') {
-    prefix = `${toUpper(keyword)}(${prefix}`
-    suffix = ')'
-    symbolChar = ` ${symbol.toUpperCase()} `
+  const { target: targets, expr: expression, keyword, symbol, as: alias, offset, parentheses: outParentheses } = expr
+  let prefix = columnOffsetToSQL({ expr: expression, offset })
+  const result = []
+  for (let i = 0, len = targets.length; i < len; ++i) {
+    const target = targets[i]
+    const { angle_brackets: angleBrackets, length, dataType, parentheses, quoted, scale, suffix: dataTypeSuffix, expr: targetExpr } = target
+    let str = targetExpr ? exprToSQL(targetExpr) : ''
+    if (length != null) str = scale ? `${length}, ${scale}` : length
+    if (parentheses) str = `(${str})`
+    if (angleBrackets) str = `<${str}>`
+    if (dataTypeSuffix && dataTypeSuffix.length) str += ` ${dataTypeSuffix.map(literalToSQL).join(' ')}`
+    let symbolChar = '::'
+    let suffix = ''
+    const targetResult = []
+    if (symbol === 'as') {
+      if (i === 0) prefix = `${toUpper(keyword)}(${prefix}`
+      suffix = ')'
+      symbolChar = ` ${symbol.toUpperCase()} `
+    }
+    if (i === 0) targetResult.push(prefix)
+    const arrayDimension = arrayDimensionToSymbol(target)
+    targetResult.push(symbolChar, quoted, dataType, quoted, arrayDimension, str, suffix)
+    result.push(targetResult.filter(hasVal).join(''))
   }
-  suffix += arrows.map((arrow, index) => commonOptionConnector(arrow, literalToSQL, properties[index])).join(' ')
-  if (alias) suffix += ` AS ${identifierToSql(alias)}`
-  if (collate) suffix += ` ${commonTypeValue(collate).join(' ')}`
-  const arrayDimension = arrayDimensionToSymbol(target)
-  const result = [prefix, symbolChar, quoted, dataType, quoted, arrayDimension, str, suffix]
-  return result.filter(hasVal).join('')
+  if (alias) result.push(` AS ${identifierToSql(alias)}`)
+  const sql = result.filter(hasVal).join('')
+  return outParentheses ? `(${sql})` : sql
 }
 
 function extractFunToSQL(stmt) {
@@ -74,21 +86,42 @@ function flattenFunToSQL(stmt) {
   return `${toUpper(type)}(${argsStr})`
 }
 
+function funcArgToSQL(argExpr) {
+  const { name, symbol, expr } = argExpr.value
+  return [name, symbol, exprToSQL(expr)].filter(hasVal).join(' ')
+}
+
+function withinGroupToSQL(stmt) {
+  if (!stmt) return ''
+  const { type, keyword, orderby } = stmt
+  return [toUpper(type), toUpper(keyword), `(${orderOrPartitionByToSQL(orderby, 'order by')})`].filter(hasVal).join(' ')
+}
+
 function funcToSQL(expr) {
-  const { args, name, args_parentheses, parentheses, over, collate, suffix } = expr
-  const collateStr = commonTypeValue(collate).join(' ')
+  const { args, array_index, name, args_parentheses, parentheses, within_group: withinGroup, over, suffix } = expr
   const overStr = overToSQL(over)
+  const withinGroupStr = withinGroupToSQL(withinGroup)
   const suffixStr = exprToSQL(suffix)
   const funcName = [literalToSQL(name.schema), name.name.map(literalToSQL).join('.')].filter(hasVal).join('.')
-  if (!args) return [funcName, overStr].filter(hasVal).join(' ')
+  if (!args) return [funcName, withinGroupStr, overStr].filter(hasVal).join(' ')
   let separator = expr.separator || ', '
   if (toUpper(funcName) === 'TRIM') separator = ' '
   let str = [funcName]
   str.push(args_parentheses === false ? ' ' : '(')
-  str.push(exprToSQL(args).join(separator))
+  const argsList = exprToSQL(args)
+  if (Array.isArray(separator)) {
+    let argsSQL = argsList[0]
+    for (let i = 1, len = argsList.length; i < len; ++i) {
+      argsSQL = [argsSQL, argsList[i]].join(` ${exprToSQL(separator[i - 1])} `)
+    }
+    str.push(argsSQL)
+  } else {
+    str.push(argsList.join(separator))
+  }
   if (args_parentheses !== false) str.push(')')
+  str.push(arrayIndexToSQL(array_index))
   str = [str.join(''), suffixStr].filter(hasVal).join(' ')
-  return [parentheses ? `(${str})` : str, collateStr, overStr].filter(hasVal).join(' ')
+  return [parentheses ? `(${str})` : str, withinGroupStr, overStr].filter(hasVal).join(' ')
 }
 
 function tablefuncFunToSQL(expr) {
@@ -107,9 +140,11 @@ function lambdaToSQL(stmt) {
 
 export {
   anyValueFuncToSQL,
+  arrayDimensionToSymbol,
   castToSQL,
   extractFunToSQL,
   flattenFunToSQL,
+  funcArgToSQL,
   funcToSQL,
   jsonObjectArgToSQL,
   lambdaToSQL,

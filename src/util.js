@@ -1,4 +1,5 @@
 import { columnToSQL, columnRefToSQL, columnOrderToSQL } from './column'
+import { collateToSQL } from './collate'
 
 // const CHARS_ESCAPE_MAP = {
 //   '\0'   : '\\0',
@@ -197,12 +198,14 @@ function columnIdentifierToSql(ident) {
   const { database } = getParserOpt()
   if (!ident) return
   switch (database && database.toLowerCase()) {
+    case 'athena':
     case 'db2':
     case 'postgresql':
     case 'redshift':
     case 'snowflake':
     case 'noql':
     case 'trino':
+    case 'sqlite':
       return `"${ident}"`
     case 'transactsql':
       return `[${ident}]`
@@ -214,21 +217,23 @@ function columnIdentifierToSql(ident) {
   }
 }
 
-function identifierToSql(ident, isDual) {
-  const { database } = getParserOpt()
+function identifierToSql(ident, isDual, surround) {
   if (isDual === true) return `'${ident}'`
   if (!ident) return
   if (ident === '*') return ident
+  if (surround) return `${surround}${ident}${surround}`
+  const { database } = getParserOpt()
   switch (database && database.toLowerCase()) {
     case 'mysql':
     case 'mariadb':
-    case 'sqlite':
       return `\`${ident}\``
+    case 'athena':
     case 'postgresql':
     case 'redshift':
     case 'snowflake':
     case 'trino':
     case 'noql':
+    case 'sqlite':
       return `"${ident}"`
     case 'transactsql':
       return `[${ident}]`
@@ -238,16 +243,6 @@ function identifierToSql(ident, isDual) {
     default:
       return `\`${ident}\``
   }
-}
-
-function commonTypeValue(opt) {
-  const result = []
-  if (!opt) return result
-  const { type, symbol, value } = opt
-  result.push(type.toUpperCase())
-  if (symbol) result.push(symbol)
-  result.push(value.toUpperCase())
-  return result
 }
 
 function toUpper(val) {
@@ -263,7 +258,7 @@ function literalToSQL(literal) {
   if (!literal) return
   let { prefix } = literal
   const { type, parentheses, suffix, value } = literal
-  let str = typeof literal === 'string' ? literal : value
+  let str = typeof literal === 'object' ? value : literal
   switch (type) {
     case 'backticks_quote_string':
       str = `\`${escape(value)}\``
@@ -318,15 +313,30 @@ function literalToSQL(literal) {
     case 'var_string':
       str = `N'${escape(value)}'`
       break
+    case 'unicode_string':
+      str = `U&'${escape(value)}'`
+      break
     default:
       break
   }
   const result = []
   if (prefix) result.push(toUpper(prefix))
   result.push(str)
-  if (suffix) result.push(typeof suffix === 'object' && suffix.collate ? commonTypeValue(suffix.collate).join(' ') : toUpper(suffix))
+  if (suffix) {
+    if (typeof suffix === 'string') result.push(suffix)
+    if (typeof suffix === 'object') {
+      if (suffix.collate) result.push(collateToSQL(suffix.collate))
+      else result.push(literalToSQL(suffix))
+    }
+  }
   str = result.join(' ')
   return parentheses ? `(${str})` : str
+}
+
+function commonTypeValue(opt) {
+  if (!opt) return []
+  const { type, symbol, value } = opt
+  return [type.toUpperCase(), symbol, typeof value === 'string' ? value.toUpperCase() : literalToSQL(value)].filter(hasVal)
 }
 
 function replaceParams(ast, params) {
@@ -397,7 +407,10 @@ function triggerEventToSQL(events) {
 function returningToSQL(returning) {
   if (!returning) return ''
   const { columns } = returning
-  return ['RETURNING', columns.map(columnToSQL).filter(hasVal).join(', ')].join(' ')
+  return [
+    'RETURNING',
+    columns.map(columnToSQL).filter(hasVal).join(', '),
+  ].join(' ')
 }
 
 function commonKeywordArgsToSQL(kwArgs) {

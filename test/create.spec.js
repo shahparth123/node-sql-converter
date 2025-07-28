@@ -55,7 +55,7 @@ describe('create', () => {
         compCode varchar(255) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL COMMENT '我是comment',
         compCode2 varchar(255) CHARACTER SET = utf8 COLLATE = utf8_general_ci NOT NULL COMMENT '我是comment'
       ) ENGINE = InnoDB AUTO_INCREMENT = 3 CHARACTER SET = utf8 COLLATE = utf8_general_ci COMMENT = '我是comment' ROW_FORMAT = Dynamic`))
-        .to.equal("CREATE TABLE `comp` (`id` INT(11) NOT NULL AUTO_INCREMENT, `compCode` VARCHAR(255) NOT NULL COMMENT '我是comment' CHARACTER SET UTF8 COLLATE UTF8_GENERAL_CI, `compCode2` VARCHAR(255) NOT NULL COMMENT '我是comment' CHARACTER SET = UTF8 COLLATE = UTF8_GENERAL_CI) ENGINE = INNODB AUTO_INCREMENT = 3 CHARACTER SET = utf8 COLLATE = utf8_general_ci COMMENT = '我是comment' ROW_FORMAT = DYNAMIC");
+        .to.equal("CREATE TABLE `comp` (`id` INT(11) NOT NULL AUTO_INCREMENT, `compCode` VARCHAR(255) NOT NULL COMMENT '我是comment' CHARACTER SET utf8 COLLATE utf8_general_ci, `compCode2` VARCHAR(255) NOT NULL COMMENT '我是comment' CHARACTER SET = utf8 COLLATE = utf8_general_ci) ENGINE = INNODB AUTO_INCREMENT = 3 CHARACTER SET = utf8 COLLATE = utf8_general_ci COMMENT = '我是comment' ROW_FORMAT = DYNAMIC");
     })
 
     it('should support create temporary table', () => {
@@ -91,27 +91,27 @@ describe('create', () => {
 
       it('should support create table with collate', () => {
         expect(getParsedSql(`create temporary table if not exists dbname.tableName (id INT(11) auto_increment primary key comment "id column" collate utf8_bin, name varchar(128) unique key comment "user name" collate utf8_bin) ENGINE = MEMORY`))
-          .to.equal('CREATE TEMPORARY TABLE IF NOT EXISTS `dbname`.`tableName` (`id` INT(11) AUTO_INCREMENT PRIMARY KEY COMMENT "id column" COLLATE UTF8_BIN, `name` VARCHAR(128) UNIQUE KEY COMMENT "user name" COLLATE UTF8_BIN) ENGINE = MEMORY');
+          .to.equal('CREATE TEMPORARY TABLE IF NOT EXISTS `dbname`.`tableName` (`id` INT(11) AUTO_INCREMENT PRIMARY KEY COMMENT "id column" COLLATE utf8_bin, `name` VARCHAR(128) UNIQUE KEY COMMENT "user name" COLLATE utf8_bin) ENGINE = MEMORY');
       })
 
       it('should support create table with collate', () => {
         expect(getParsedSql(`create temporary table if not exists dbname.tableName (id INT(11) auto_increment primary key comment "id column" collate utf8_bin, name varchar(128) unique key comment "user name" collate utf8_bin) ENGINE = MEMORY`))
-          .to.equal('CREATE TEMPORARY TABLE IF NOT EXISTS `dbname`.`tableName` (`id` INT(11) AUTO_INCREMENT PRIMARY KEY COMMENT "id column" COLLATE UTF8_BIN, `name` VARCHAR(128) UNIQUE KEY COMMENT "user name" COLLATE UTF8_BIN) ENGINE = MEMORY');
+          .to.equal('CREATE TEMPORARY TABLE IF NOT EXISTS `dbname`.`tableName` (`id` INT(11) AUTO_INCREMENT PRIMARY KEY COMMENT "id column" COLLATE utf8_bin, `name` VARCHAR(128) UNIQUE KEY COMMENT "user name" COLLATE utf8_bin) ENGINE = MEMORY');
       })
 
       it('should support create table with column_format', () => {
         expect(getParsedSql(`create temporary table if not exists dbname.tableName (id INT(11) auto_increment primary key comment "id column" collate utf8_bin column_format fixed, name varchar(128) unique key comment "user name" collate utf8_bin column_format dynamic) ENGINE = MEMORY`))
-          .to.equal('CREATE TEMPORARY TABLE IF NOT EXISTS `dbname`.`tableName` (`id` INT(11) AUTO_INCREMENT PRIMARY KEY COMMENT "id column" COLLATE UTF8_BIN COLUMN_FORMAT FIXED, `name` VARCHAR(128) UNIQUE KEY COMMENT "user name" COLLATE UTF8_BIN COLUMN_FORMAT DYNAMIC) ENGINE = MEMORY');
+          .to.equal('CREATE TEMPORARY TABLE IF NOT EXISTS `dbname`.`tableName` (`id` INT(11) AUTO_INCREMENT PRIMARY KEY COMMENT "id column" COLLATE utf8_bin COLUMN_FORMAT FIXED, `name` VARCHAR(128) UNIQUE KEY COMMENT "user name" COLLATE utf8_bin COLUMN_FORMAT DYNAMIC) ENGINE = MEMORY');
       })
 
       it('should support create table with storage', () => {
         expect(getParsedSql(`create temporary table if not exists dbname.tableName (id INT(11) auto_increment primary key comment "id column" collate utf8_bin column_format fixed storage disk, name varchar(128) unique key comment "user name" collate utf8_bin column_format dynamic storage memory) ENGINE = MEMORY`))
-          .to.equal('CREATE TEMPORARY TABLE IF NOT EXISTS `dbname`.`tableName` (`id` INT(11) AUTO_INCREMENT PRIMARY KEY COMMENT "id column" COLLATE UTF8_BIN COLUMN_FORMAT FIXED STORAGE DISK, `name` VARCHAR(128) UNIQUE KEY COMMENT "user name" COLLATE UTF8_BIN COLUMN_FORMAT DYNAMIC STORAGE MEMORY) ENGINE = MEMORY');
+          .to.equal('CREATE TEMPORARY TABLE IF NOT EXISTS `dbname`.`tableName` (`id` INT(11) AUTO_INCREMENT PRIMARY KEY COMMENT "id column" COLLATE utf8_bin COLUMN_FORMAT FIXED STORAGE DISK, `name` VARCHAR(128) UNIQUE KEY COMMENT "user name" COLLATE utf8_bin COLUMN_FORMAT DYNAMIC STORAGE MEMORY) ENGINE = MEMORY');
       })
 
       it('should support create table with reference definition', () => {
         expect(getParsedSql(`create temporary table if not exists dbname.tableName (id INT(11) auto_increment primary key comment "id column" collate utf8_bin column_format fixed storage disk references rdb.rta(id) match full on delete cascade on update restrict, name varchar(128) unique key comment "user name" collate utf8_bin column_format dynamic storage memory references rdb.rtb(name) match simple on delete set null on update set default) ENGINE = MEMORY`))
-          .to.equal('CREATE TEMPORARY TABLE IF NOT EXISTS `dbname`.`tableName` (`id` INT(11) AUTO_INCREMENT PRIMARY KEY COMMENT "id column" COLLATE UTF8_BIN COLUMN_FORMAT FIXED STORAGE DISK REFERENCES `rdb`.`rta` (`id`) MATCH FULL ON DELETE CASCADE ON UPDATE RESTRICT, `name` VARCHAR(128) UNIQUE KEY COMMENT "user name" COLLATE UTF8_BIN COLUMN_FORMAT DYNAMIC STORAGE MEMORY REFERENCES `rdb`.`rtb` (`name`) MATCH SIMPLE ON DELETE SET NULL ON UPDATE SET DEFAULT) ENGINE = MEMORY');
+          .to.equal('CREATE TEMPORARY TABLE IF NOT EXISTS `dbname`.`tableName` (`id` INT(11) AUTO_INCREMENT PRIMARY KEY COMMENT "id column" COLLATE utf8_bin COLUMN_FORMAT FIXED STORAGE DISK REFERENCES `rdb`.`rta` (`id`) MATCH FULL ON DELETE CASCADE ON UPDATE RESTRICT, `name` VARCHAR(128) UNIQUE KEY COMMENT "user name" COLLATE utf8_bin COLUMN_FORMAT DYNAMIC STORAGE MEMORY REFERENCES `rdb`.`rtb` (`name`) MATCH SIMPLE ON DELETE SET NULL ON UPDATE SET DEFAULT) ENGINE = MEMORY');
       })
 
       it('should support create table with column check', () => {
@@ -133,7 +133,7 @@ describe('create', () => {
 
       it('should support generated columns', () =>{
         expect(getParsedSql(`CREATE TABLE contacts (id INT KEY, first_name VARCHAR(50) NOT NULL, last_name VARCHAR(50) NOT NULL, fullname varchar(101) CHARACTER SET latin1 COLLATE latin1_general_cs AS (CONCAT(first_name,' ',last_name)) STORED NOT NULL);`))
-          .to.equal("CREATE TABLE `contacts` (`id` INT KEY, `first_name` VARCHAR(50) NOT NULL, `last_name` VARCHAR(50) NOT NULL, `fullname` VARCHAR(101) NOT NULL CHARACTER SET LATIN1 COLLATE LATIN1_GENERAL_CS AS (CONCAT(`first_name`, ' ', `last_name`)) STORED)");
+          .to.equal("CREATE TABLE `contacts` (`id` INT KEY, `first_name` VARCHAR(50) NOT NULL, `last_name` VARCHAR(50) NOT NULL, `fullname` VARCHAR(101) AS (CONCAT(`first_name`, ' ', `last_name`)) STORED NOT NULL CHARACTER SET latin1 COLLATE latin1_general_cs)");
 
         expect(getParsedSql(`CREATE TABLE contacts (id INT KEY, first_name VARCHAR(50) NOT NULL, last_name VARCHAR(50) NOT NULL, fullname varchar(101) AS (CONCAT(first_name,' ',last_name)) STORED);`))
         .to.equal("CREATE TABLE `contacts` (`id` INT KEY, `first_name` VARCHAR(50) NOT NULL, `last_name` VARCHAR(50) NOT NULL, `fullname` VARCHAR(101) AS (CONCAT(`first_name`, ' ', `last_name`)) STORED)");
@@ -144,7 +144,7 @@ describe('create', () => {
 
       it('should support generated columns with generated always', () =>{
         expect(getParsedSql(`CREATE TABLE contacts (id INT KEY, first_name VARCHAR(50) NOT NULL, last_name VARCHAR(50) NOT NULL, fullname varchar(101) CHARACTER SET latin1 COLLATE latin1_general_cs GENERATED ALWAYS AS (CONCAT(first_name,' ',last_name)) STORED NOT NULL);`))
-          .to.equal("CREATE TABLE `contacts` (`id` INT KEY, `first_name` VARCHAR(50) NOT NULL, `last_name` VARCHAR(50) NOT NULL, `fullname` VARCHAR(101) NOT NULL CHARACTER SET LATIN1 COLLATE LATIN1_GENERAL_CS GENERATED ALWAYS AS (CONCAT(`first_name`, ' ', `last_name`)) STORED)");
+          .to.equal("CREATE TABLE `contacts` (`id` INT KEY, `first_name` VARCHAR(50) NOT NULL, `last_name` VARCHAR(50) NOT NULL, `fullname` VARCHAR(101) GENERATED ALWAYS AS (CONCAT(`first_name`, ' ', `last_name`)) STORED NOT NULL CHARACTER SET latin1 COLLATE latin1_general_cs)");
 
         expect(getParsedSql(`CREATE TABLE contacts (id INT KEY, first_name VARCHAR(50) NOT NULL, last_name VARCHAR(50) NOT NULL, fullname varchar(101) GENERATED ALWAYS AS (CONCAT(first_name,' ',last_name)) VIRTUAL);`))
           .to.equal("CREATE TABLE `contacts` (`id` INT KEY, `first_name` VARCHAR(50) NOT NULL, `last_name` VARCHAR(50) NOT NULL, `fullname` VARCHAR(101) GENERATED ALWAYS AS (CONCAT(`first_name`, ' ', `last_name`)) VIRTUAL)");
@@ -307,6 +307,7 @@ describe('create', () => {
       it('should throw error, when resource unkonwn', () => {
         const columnDefinition = [{
           "column": {
+            "collate": null,
             "type": "column_ref",
             "table": null,
             "column": "id"
@@ -590,10 +591,10 @@ describe('create', () => {
 
   describe('create database', () => {
     it('should support create database', () => {
-      expect(getParsedSql('CREATE DATABASE abc')).to.equal('CREATE DATABASE `abc`')
-      expect(getParsedSql('CREATE DATABASE IF NOT EXISTS abc')).to.equal('CREATE DATABASE IF NOT EXISTS `abc`')
-      expect(getParsedSql('CREATE DATABASE IF NOT EXISTS abc default CHARACTER SET utf8mb4')).to.equal('CREATE DATABASE IF NOT EXISTS `abc` DEFAULT CHARACTER SET utf8mb4')
-      expect(getParsedSql('CREATE DATABASE IF NOT EXISTS abc CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci')).to.equal('CREATE DATABASE IF NOT EXISTS `abc` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci')
+      expect(getParsedSql('CREATE DATABASE abc')).to.equal('CREATE DATABASE abc')
+      expect(getParsedSql('CREATE DATABASE IF NOT EXISTS `abc`')).to.equal('CREATE DATABASE IF NOT EXISTS `abc`')
+      expect(getParsedSql('CREATE DATABASE IF NOT EXISTS abc default CHARACTER SET utf8mb4')).to.equal('CREATE DATABASE IF NOT EXISTS abc DEFAULT CHARACTER SET utf8mb4')
+      expect(getParsedSql('CREATE DATABASE IF NOT EXISTS `abc` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci')).to.equal('CREATE DATABASE IF NOT EXISTS `abc` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci')
     })
   })
 
@@ -603,8 +604,10 @@ describe('create', () => {
       expect(getParsedSql("CREATE VIEW v (mycol) AS SELECT 'abc'")).to.equal("CREATE VIEW `v` (`mycol`) AS SELECT 'abc'")
     })
     it('should support optional setting', () => {
-      expect(getParsedSql('CREATE OR REPLACE ALGORITHM = UNDEFINED DEFINER = "abc"@"localhost" SQL SECURITY INVOKER VIEW test.v AS SELECT * FROM t WITH CHECK OPTION;')).to.equal('CREATE OR REPLACE ALGORITHM = UNDEFINED DEFINER = "abc"@"localhost" SQL SECURITY INVOKER VIEW `test`.`v` AS SELECT * FROM `t` WITH CHECK OPTION')
-      expect(getParsedSql('CREATE OR REPLACE ALGORITHM = MERGE DEFINER = \'abc\'@\'localhost\' SQL SECURITY INVOKER VIEW test.v AS SELECT * FROM t WITH CASCADED CHECK OPTION;')).to.equal('CREATE OR REPLACE ALGORITHM = MERGE DEFINER = \'abc\'@\'localhost\' SQL SECURITY INVOKER VIEW `test`.`v` AS SELECT * FROM `t` WITH CASCADED CHECK OPTION')
+      expect(getParsedSql('CREATE OR REPLACE ALGORITHM = UNDEFINED DEFINER = "abc"@"localhost" SQL SECURITY INVOKER VIEW test.v AS SELECT * FROM t WITH CHECK OPTION;')).to.equal('CREATE OR REPLACE ALGORITHM = UNDEFINED DEFINER = "abc" @ "localhost" SQL SECURITY INVOKER VIEW `test`.`v` AS SELECT * FROM `t` WITH CHECK OPTION')
+      expect(getParsedSql('CREATE OR REPLACE ALGORITHM = MERGE DEFINER = \'abc\'@\'localhost\' SQL SECURITY INVOKER VIEW test.v AS SELECT * FROM t WITH CASCADED CHECK OPTION;')).to.equal('CREATE OR REPLACE ALGORITHM = MERGE DEFINER = \'abc\' @ \'localhost\' SQL SECURITY INVOKER VIEW `test`.`v` AS SELECT * FROM `t` WITH CASCADED CHECK OPTION')
+      const sql = 'create algorithm=merge definer=`root`@`localhost` sql security definer view `viewname` as select abc'
+      expect(getParsedSql(sql)).to.equal('CREATE ALGORITHM = MERGE DEFINER = `root` @ `localhost` SQL SECURITY DEFINER VIEW `viewname` AS SELECT `abc`')
     })
   })
   it('throw error when create type is unknown', () => {

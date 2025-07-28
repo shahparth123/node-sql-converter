@@ -376,7 +376,38 @@ describe('Flink', () => {
             INTERVAL '60' SECONDS
           )
         )`,
-        "SELECT `window_start`, `window_end`, `http_status`, COUNT(*) AS `count_http_status` FROM TABLE(TUMBLE(TABLE `parsed_logs` DESCRIPTOR(`_operationTs`) INTERVAL '60' SECONDS))"
+        "SELECT `window_start`, `window_end`, `http_status`, COUNT(*) AS `count_http_status` FROM TABLE(TUMBLE(TABLE `parsed_logs`, DESCRIPTOR(`_operationTs`), INTERVAL '60' SECONDS))"
+      ]
+    },
+    {
+      title: 'tumble table with offset',
+      sql: [
+        `SELECT
+          window_start,
+          window_end,
+          http_status,
+          count(*) as count_http_status
+        FROM
+        TABLE (
+          TUMBLE (
+            TABLE parsed_logs,
+            DESCRIPTOR (_operationTs),
+            INTERVAL '60' SECONDS,
+            INTERVAL '10' MINUTES
+          )
+        )`,
+        "SELECT `window_start`, `window_end`, `http_status`, COUNT(*) AS `count_http_status` FROM TABLE(TUMBLE(TABLE `parsed_logs`, DESCRIPTOR(`_operationTs`), INTERVAL '60' SECONDS, INTERVAL '10' MINUTES))"
+      ]
+    },
+    {
+      title: 'tumble table with named params',
+      sql: [
+        `SELECT * FROM TABLE(
+        TUMBLE(
+          DATA => TABLE Bid,
+          TIMECOL => DESCRIPTOR(bidtime),
+          SIZE => INTERVAL '10' MINUTES))`,
+        "SELECT * FROM TABLE(TUMBLE(TABLE DATA => `Bid`, TIMECOL => DESCRIPTOR(`bidtime`), SIZE => INTERVAL '10' MINUTES))"
       ]
     },
     {
@@ -405,13 +436,27 @@ describe('Flink', () => {
             json_object(
                 'risk-tag' value risk_tag,
                 'abc' VALUE (10 * 2),
-                'user-agent' value JSON_OBJECT('city' VALUE 'New York', 'postalCode' VALUE '10001')
+                'user-agent' value JSON_OBJECT('city' VALUE 'New York' on null null, 'postalCode' VALUE '10001' on null absent)
             ) as eventDetail
         from check_risk
         );`,
-        "SELECT `name`, `eventTime`, `eventDetail` FROM (SELECT concat('AK中文信息') AS `name`, CAST(`event_time` AS VARCHAR) AS `eventTime`, JSON_OBJECT('risk-tag' VALUE `risk_tag`, 'abc' VALUE (10 * 2), 'user-agent' VALUE JSON_OBJECT('city' VALUE 'New York', 'postalCode' VALUE '10001')) AS `eventDetail` FROM `check_risk`)"
+        "SELECT `name`, `eventTime`, `eventDetail` FROM (SELECT concat('AK中文信息') AS `name`, CAST(`event_time` AS VARCHAR) AS `eventTime`, JSON_OBJECT('risk-tag' VALUE `risk_tag`, 'abc' VALUE (10 * 2), 'user-agent' VALUE JSON_OBJECT('city' VALUE 'New York' ON NULL NULL, 'postalCode' VALUE '10001' ON NULL ABSENT)) AS `eventDetail` FROM `check_risk`)"
       ]
     },
+    {
+      title: "create table",
+      sql: [
+        "CREATE TABLE Orders (`user` BIGINT)",
+        "CREATE TABLE `Orders` (`user` BIGINT)",
+      ],
+    },
+    {
+      title: "create table with options",
+      sql: [
+        "CREATE TABLE Orders (`user` BIGINT) WITH ('connector' = 'kafka')",
+        "CREATE TABLE `Orders` (`user` BIGINT) WITH ('connector' = 'kafka')",
+      ],
+    }
   ];
 
   SQL_LIST.forEach(sqlInfo => {

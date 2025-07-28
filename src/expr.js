@@ -4,13 +4,16 @@ import { aggrToSQL } from './aggregation'
 import { assignToSQL } from './assign'
 import { binaryToSQL } from './binary'
 import { caseToSQL } from './case'
+import { collateToSQL } from './collate'
 import { columnDefinitionToSQL, columnRefToSQL, fullTextSearchToSQL } from './column'
-import { anyValueFuncToSQL, castToSQL, extractFunToSQL, flattenFunToSQL, funcToSQL, jsonObjectArgToSQL, lambdaToSQL, tablefuncFunToSQL } from './func'
+import { anyValueFuncToSQL, castToSQL, extractFunToSQL, flattenFunToSQL, funcArgToSQL, funcToSQL, jsonObjectArgToSQL, lambdaToSQL, tablefuncFunToSQL } from './func'
+import { valuesToSQL } from './insert'
 import { intervalToSQL } from './interval'
 import { jsonExprToSQL, jsonVisitorExprToSQL } from './json'
 import { selectToSQL } from './select'
 import { showToSQL } from './show'
 import { arrayStructExprToSQL } from './array-struct'
+import { loadDataToSQL } from './load'
 import { tablesToSQL, unnestToSQL } from './tables'
 import { unionToSQL } from './union'
 import { namedWindowExprListToSQL, windowFuncToSQL } from './window'
@@ -25,6 +28,7 @@ const exprToSQLConvertFn = {
   binary_expr       : binaryToSQL,
   case              : caseToSQL,
   cast              : castToSQL,
+  collate           : collateToSQL,
   column_ref        : columnRefToSQL,
   column_definition : columnDefinitionToSQL,
   datatype          : dataTypeToSQL,
@@ -33,23 +37,25 @@ const exprToSQLConvertFn = {
   fulltext_search   : fullTextSearchToSQL,
   function          : funcToSQL,
   lambda            : lambdaToSQL,
+  load_data         : loadDataToSQL,
   insert            : unionToSQL,
   interval          : intervalToSQL,
   json              : jsonExprToSQL,
   json_object_arg   : jsonObjectArgToSQL,
   json_visitor      : jsonVisitorExprToSQL,
+  func_arg          : funcArgToSQL,
   show              : showToSQL,
   struct            : arrayStructExprToSQL,
   tablefunc         : tablefuncFunToSQL,
   tables            : tablesToSQL,
   unnest            : unnestToSQL,
+  values            : valuesToSQL,
   'window'          : namedWindowExprListToSQL,
 }
 
 function varToSQL(expr) {
-  const { prefix = '@', name, members, keyword, quoted, suffix } = expr
+  const { prefix = '@', name, members, quoted, suffix } = expr
   const val = []
-  if (keyword) val.push(keyword)
   const varName = members && members.length > 0 ? `${name}.${members.join('.')}` : name
   let result = `${prefix || ''}${varName}`
   if (suffix) result += suffix
@@ -69,7 +75,9 @@ function exprToSQL(exprOrigin) {
       expr[key] = ast[key]
     }
   }
-  return exprToSQLConvertFn[expr.type] ? exprToSQLConvertFn[expr.type](expr) : literalToSQL(expr)
+  const { type } = expr
+  if (type === 'expr') return exprToSQL(expr.expr)
+  return exprToSQLConvertFn[type] ? exprToSQLConvertFn[type](expr) : literalToSQL(expr)
 }
 
 function unaryToSQL(unarExpr) {
@@ -81,12 +89,17 @@ function unaryToSQL(unarExpr) {
 
 function getExprListSQL(exprList) {
   if (!exprList) return []
+  if (!Array.isArray(exprList)) exprList = [exprList]
   return exprList.map(exprToSQL)
 }
 
 exprToSQLConvertFn.expr_list = expr => {
-  const str = getExprListSQL(expr.value)
-  return expr.parentheses ? `(${str.join(', ')})` : str
+  const result = getExprListSQL(expr.value)
+  const { parentheses, separator } = expr
+  if (!parentheses && !separator) return result
+  const joinSymbol = separator || ', '
+  const str = result.join(joinSymbol)
+  return parentheses ? `(${str})` : str
 }
 
 exprToSQLConvertFn.select = expr => {

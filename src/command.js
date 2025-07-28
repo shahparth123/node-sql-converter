@@ -1,6 +1,6 @@
 import { columnDataType, columnRefToSQL } from './column'
 import { createDefinitionToSQL } from './create'
-import { commonTypeValue, identifierToSql, hasVal, toUpper, literalToSQL } from './util'
+import { identifierToSql, hasVal, toUpper, literalToSQL } from './util'
 import { exprToSQL } from './expr'
 import { tablesToSQL, tableToSQL } from './tables'
 import astToSQL from './sql'
@@ -32,6 +32,9 @@ function commonCmdToSQL(stmt) {
       break
     case 'index':
       clauses.push(columnRefToSQL(name), ...stmt.table ? ['ON', tableToSQL(stmt.table)] : [], stmt.options && stmt.options.map(exprToSQL).filter(hasVal).join(' '))
+      break
+    case 'type':
+      clauses.push(name.map(columnRefToSQL).join(', '), stmt.options && stmt.options.map(exprToSQL).filter(hasVal).join(' '))
       break
     default:
       break
@@ -90,10 +93,10 @@ function useToSQL(stmt) {
 }
 
 function setVarToSQL(stmt) {
-  const { expr } = stmt
-  const action = 'SET'
-  const val = exprToSQL(expr)
-  return `${action} ${val}`
+  const { type, expr, keyword } = stmt
+  const action = toUpper(type)
+  const setItems = expr.map(exprToSQL).join(', ')
+  return [action, toUpper(keyword), setItems].filter(hasVal).join(' ')
 }
 
 function pgLock(stmt) {
@@ -138,7 +141,7 @@ function declareToSQL(stmt) {
     const declareInfo = [[at, name].filter(hasVal).join(''), toUpper(as), toUpper(constant)]
     switch (keyword) {
       case 'variable':
-        declareInfo.push(columnDataType(datatype), ...commonTypeValue(dec.collate), toUpper(not_null))
+        declareInfo.push(columnDataType(datatype), exprToSQL(dec.collate), toUpper(not_null))
         if (definition) declareInfo.push(toUpper(definition.keyword), exprToSQL(definition.value))
         break
       case 'cursor':

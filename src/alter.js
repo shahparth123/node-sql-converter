@@ -1,17 +1,27 @@
-import { columnDefinitionToSQL, columnRefToSQL } from './column'
+import { columnDefinitionToSQL, columnRefToSQL, columnsToSQL } from './column'
 import { createDefinitionToSQL } from './create'
 import { indexTypeAndOptionToSQL } from './index-definition'
 import { tablesToSQL, tableToSQL } from './tables'
 import { exprToSQL } from './expr'
 import { selectToSQL } from './select'
-import { dataTypeToSQL, hasVal, toUpper, identifierToSql } from './util'
+import { dataTypeToSQL, hasVal, toUpper, identifierToSql, literalToSQL } from './util'
 
+function alterExprPartition(action, expr) {
+  switch (action) {
+    case 'add':
+      const sql = expr.map(({ name, value }) => ['PARTITION', literalToSQL(name), 'VALUES', toUpper(value.type), `(${literalToSQL(value.expr)})`].join(' ')).join(', ')
+      return `(${sql})`
+    default:
+      return columnsToSQL(expr)
+  }
+}
 function alterExprToSQL(expr) {
   if (!expr) return ''
   const {
     action,
     create_definitions: createDefinition,
-    if_not_exists: ifNotExists,keyword,
+    if_not_exists: ifNotExists, keyword,
+    if_exists: ifExists,
     old_column: oldColumn,
     prefix,
     resource,
@@ -47,6 +57,9 @@ function alterExprToSQL(expr) {
       name = identifierToSql(expr[resource])
       dataType = [createDefinitionToSQL(createDefinition)]
       break
+    case 'partition':
+      dataType = [alterExprPartition(action, expr.partitions)]
+      break
     case 'key':
       name = identifierToSql(expr[resource])
       break
@@ -58,21 +71,24 @@ function alterExprToSQL(expr) {
     toUpper(action),
     toUpper(keyword),
     toUpper(ifNotExists),
+    toUpper(ifExists),
     oldColumn && columnRefToSQL(oldColumn),
     toUpper(prefix),
     name && name.trim(),
     dataType.filter(hasVal).join(' '),
-    suffix && `${toUpper(suffix.keyword)} ${columnRefToSQL(suffix.expr)}`,
   ]
+  if (suffix) {
+    alterArray.push(toUpper(suffix.keyword), suffix.expr && columnRefToSQL(suffix.expr))
+  }
   return alterArray.filter(hasVal).join(' ')
 }
 
 function alterTableToSQL(stmt) {
-  const { type, table, expr = [] } = stmt
+  const { type, table, if_exists, prefix, expr = [] } = stmt
   const action = toUpper(type)
   const tableName = tablesToSQL(table)
   const exprList = expr.map(exprToSQL)
-  const result = [action, 'TABLE', tableName, exprList.join(', ')]
+  const result = [action, 'TABLE', toUpper(if_exists), literalToSQL(prefix), tableName, exprList.join(', ')]
   return result.filter(hasVal).join(' ')
 }
 
@@ -138,6 +154,15 @@ function alterAggregateToSQL(stmt) {
   return result.filter(hasVal).join(' ')
 }
 
+function alterSequenceToSQL(stmt) {
+  const { type, keyword, sequence, if_exists, expr = [] } = stmt
+  const action = toUpper(type)
+  const sequenceName = tablesToSQL(sequence)
+  const exprList = expr.map(createDefinitionToSQL)
+  const result = [action, toUpper(keyword), toUpper(if_exists), sequenceName, exprList.join(', ')]
+  return result.filter(hasVal).join(' ')
+}
+
 function alterToSQL(stmt) {
   const { keyword = 'table' } = stmt
   switch (keyword) {
@@ -147,6 +172,8 @@ function alterToSQL(stmt) {
       return alterTableToSQL(stmt)
     case 'schema':
       return alterSchemaToSQL(stmt)
+    case 'sequence':
+      return alterSequenceToSQL(stmt)
     case 'domain':
     case 'type':
       return alterDomainTypeToSQL(stmt)

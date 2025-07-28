@@ -1,6 +1,7 @@
+import { collateToSQL } from './collate'
 import { constraintDefinitionToSQL } from './constrain'
 import { exprToSQL } from './expr'
-import { castToSQL } from './func'
+import { arrayDimensionToSymbol, castToSQL } from './func'
 import { tablesToSQL } from './tables'
 import {
   autoIncrementToSQL,
@@ -8,6 +9,7 @@ import {
   commonOptionConnector,
   commonTypeValue,
   commentToSQL,
+  dataTypeToSQL,
   getParserOpt,
   hasVal,
   identifierToSql,
@@ -35,7 +37,7 @@ function arrayIndexToSQL(arrayIndexList) {
 }
 function columnRefToSQL(expr) {
   const {
-    array_index, arrows = [], as, collate, column, db, isDual, notations = [], schema, table, parentheses, properties,
+    array_index, as, column, collate, db, isDual, notations = [], options, schema, table, parentheses,
     suffix, order_by, subFields = [],
   } = expr
   let str = column === '*' ? '*' : columnOffsetToSQL(column, isDual)
@@ -51,22 +53,27 @@ function columnRefToSQL(expr) {
   str = [`${str}${arrayIndexToSQL(array_index)}`, ...subFields].join('.')
   const result = [
     str,
+    collateToSQL(collate),
+    exprToSQL(options),
     commonOptionConnector('AS', exprToSQL, as),
-    arrows.map((arrow, index) => commonOptionConnector(arrow, literalToSQL, properties[index])).join(' '),
   ]
-  if (collate) result.push(commonTypeValue(collate).join(' '))
-  result.push(toUpper(suffix))
+  result.push(typeof suffix === 'string' ? toUpper(suffix) : exprToSQL(suffix))
   result.push(toUpper(order_by))
   const sql = result.filter(hasVal).join(' ')
   return parentheses ? `(${sql})` : sql
 }
 
 function columnDataType(definition) {
-  const { dataType, length, suffix, scale, expr } = definition || {}
-  let result = dataType
-  if (length != null) result += `(${[length, scale].filter(val => val != null).join(', ')})`
-  if (suffix && suffix.length) result += ` ${suffix.join(' ')}`
+  if (!definition) return
+  const { dataType, length, suffix, scale, expr } = definition
+  const parentheses = length != null && true || false
+  let result = dataTypeToSQL({ dataType, length, suffix, scale, parentheses })
   if (expr) result += exprToSQL(expr)
+  if (definition.array) {
+    const arrayExpr = arrayDimensionToSymbol(definition)
+    const space = /^\[.*\]$/.test(arrayExpr) ? '' : ' '
+    result += [space, arrayExpr].join('')
+  }
   return result
 }
 
@@ -88,31 +95,41 @@ function columnReferenceDefinitionToSQL(referenceDefinition) {
   return reference.filter(hasVal)
 }
 
+function generatedExpressionToSQL(generated) {
+  if (!generated) return
+  const result = [toUpper(generated.value), `(${exprToSQL(generated.expr)})`, toUpper(generated.storage_type)]
+  return result.filter(hasVal).join(' ')
+}
+
 function columnOption(definition) {
   const columnOpt = []
   const {
-    nullable, character_set: characterSet, check, comment, collate, storage,
-    default_val: defaultOpt,
+    nullable, character_set: characterSet, check, comment, constraint, collate, storage, using,
+    default_val: defaultOpt, generated,
     auto_increment: autoIncrement,
     unique: uniqueKey,
     primary_key: primaryKey,
     column_format: columnFormat,
     reference_definition: referenceDefinition,
   } = definition
-
-  columnOpt.push(toUpper(nullable && nullable.value))
+  const nullSQL = [toUpper(nullable && nullable.action), toUpper(nullable && nullable.value)].filter(hasVal).join(' ')
+  if (!generated) columnOpt.push(nullSQL)
   if (defaultOpt) {
     const { type, value } = defaultOpt
     columnOpt.push(type.toUpperCase(), exprToSQL(value))
   }
   const { database } = getParserOpt()
+  if (constraint) columnOpt.push(toUpper(constraint.keyword), literalToSQL(constraint.constraint))
   columnOpt.push(constraintDefinitionToSQL(check))
+  columnOpt.push(generatedExpressionToSQL(generated))
+  if (generated) columnOpt.push(nullSQL)
   columnOpt.push(autoIncrementToSQL(autoIncrement), toUpper(primaryKey), toUpper(uniqueKey), commentToSQL(comment))
   columnOpt.push(...commonTypeValue(characterSet))
-  if (database !== 'sqlite') columnOpt.push(...commonTypeValue(collate))
+  if (database.toLowerCase() !== 'sqlite') columnOpt.push(exprToSQL(collate))
   columnOpt.push(...commonTypeValue(columnFormat))
   columnOpt.push(...commonTypeValue(storage))
   columnOpt.push(...columnReferenceDefinitionToSQL(referenceDefinition))
+  columnOpt.push(commonOptionConnector('USING', exprToSQL, using))
   return columnOpt.filter(hasVal).join(' ')
 }
 
@@ -122,17 +139,11 @@ function columnOrderToSQL(columnOrder) {
   columnExpr.collate = null
   const result = [
     exprToSQL(columnExpr),
-    commonOptionConnector(collate && collate.type, identifierToSql, collate && collate.value),
+    exprToSQL(collate),
     opclass,
     toUpper(order_by),
     toUpper(nulls),
   ]
-  return result.filter(hasVal).join(' ')
-}
-
-function generatedExpressionToSQL(generated) {
-  if (!generated) return
-  const result = [toUpper(generated.value), `(${exprToSQL(generated.expr)})`, toUpper(generated.storage_type)]
   return result.filter(hasVal).join(' ')
 }
 
@@ -142,10 +153,7 @@ function columnDefinitionToSQL(columnDefinition) {
   const dataType = columnDataType(columnDefinition.definition)
   column.push(name)
   column.push(dataType)
-  const columnOpt = columnOption(columnDefinition)
-  column.push(columnOpt)
-  const generated = generatedExpressionToSQL(columnDefinition.generated)
-  column.push(generated)
+  column.push(columnOption(columnDefinition))
   return column.filter(hasVal).join(' ')
 }
 
@@ -174,7 +182,7 @@ function columnToSQL(column, isDual) {
     result.push([toUpper(type), type && '(', columnsStr, type && ')'].filter(hasVal).join(''))
     return result.filter(hasVal).join(' ')
   }
-  if (expr.parentheses && Reflect.has(expr, 'array_index')) str = `(${str})`
+  if (expr.parentheses && Reflect.has(expr, 'array_index') && expr.type !== 'cast') str = `(${str})`
   if (expr.array_index && expr.type !== 'column_ref') {
     str = `${str}${arrayIndexToSQL(expr.array_index)}`
   }
@@ -199,12 +207,16 @@ function columnsToSQL(columns, tables) {
 }
 
 export {
+  arrayIndexToSQL,
+  asToSQL,
   columnDefinitionToSQL,
   columnRefToSQL,
   columnToSQL,
   columnsToSQL,
   columnDataType,
+  columnOffsetToSQL,
   columnOrderToSQL,
   columnReferenceDefinitionToSQL,
   fullTextSearchToSQL,
+  getDual,
 }

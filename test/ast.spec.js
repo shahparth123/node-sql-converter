@@ -202,7 +202,7 @@ describe('AST', () => {
                 ],
                 'char casts':  [
                     `SELECT CAST(test AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_bin;`,
-                    'SELECT CAST(`test` AS CHAR CHARACTER SET UTF8MB4) COLLATE UTF8MB4_BIN'
+                    'SELECT CAST(`test` AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_bin'
                 ],
                 'time casts': [
                     "SELECT CAST('12:31:41.8418443' AS TIME(6)) AS `time`;",
@@ -438,12 +438,12 @@ describe('AST', () => {
 
             it('should support USING keyword (single column)', () => {
                 expect(getParsedSql('SELECT * FROM t1 JOIN t2 USING (id)'))
-                    .to.equal('SELECT * FROM `t1` INNER JOIN `t2` USING (`id`)');
+                    .to.equal('SELECT * FROM `t1` INNER JOIN `t2` USING (id)');
             });
 
             it('should support USING keyword (multiple columns)', () => {
                 expect(getParsedSql('SELECT * FROM t1 JOIN t2 USING (id1, id2)'))
-                    .to.equal('SELECT * FROM `t1` INNER JOIN `t2` USING (`id1`, `id2`)');
+                    .to.equal('SELECT * FROM `t1` INNER JOIN `t2` USING (id1, id2)');
             });
         });
 
@@ -788,7 +788,7 @@ describe('AST', () => {
             expect(ast.where).to.eql({
                 type: 'binary_expr',
                 operator: '=',
-                left: { type: 'column_ref', table: null, column: 'id' },
+                left: { collate: null, type: 'column_ref', table: null, column: 'id' },
                 right: { type: 'number', value: 1 }
             });
         });
@@ -803,7 +803,7 @@ describe('AST', () => {
                 left: {
                     type: 'binary_expr',
                     operator: '=',
-                    left: { type: 'column_ref', table: null, column: 'id' },
+                    left: { collate: null,  type: 'column_ref', table: null, column: 'id' },
                     right: { type: 'number', value: 1 }
                 },
                 right: {
@@ -822,7 +822,7 @@ describe('AST', () => {
             expect(ast.where).to.eql({
                 type: 'binary_expr',
                 operator: '=',
-                left: { type: 'column_ref', table: null, column: 'col2' },
+                left: { collate: null, type: 'column_ref', table: null, column: 'col2' },
                 right: { type: 'string', value: 'John Doe' }
             });
         });
@@ -834,7 +834,7 @@ describe('AST', () => {
             expect(ast.where).to.eql({
                 type: 'binary_expr',
                 operator: '=',
-                left: { type: 'column_ref', table: null, column: 'isMain' },
+                left: { collate: null,  type: 'column_ref', table: null, column: 'isMain' },
                 right: { type: 'bool', value: true }
             });
         });
@@ -846,7 +846,7 @@ describe('AST', () => {
             expect(ast.where).to.eql({
                 type: 'binary_expr',
                 operator: '=',
-                left: { type: 'column_ref', table: null, column: 'col2' },
+                left: { collate: null,  type: 'column_ref', table: null, column: 'col2' },
                 right: { type: 'null', value: null }
             });
         });
@@ -858,7 +858,7 @@ describe('AST', () => {
             expect(ast.where).to.eql({
                 type: 'binary_expr',
                 operator: '=',
-                left: { type: 'column_ref', table: null, column: 'id' },
+                left: { collate: null,  type: 'column_ref', table: null, column: 'id' },
                 right: {
                     type: 'expr_list',
                     value: [
@@ -1081,6 +1081,7 @@ describe('AST', () => {
                         "type": "binary_expr",
                         "operator": operator,
                         "left": {
+                            "collate": null,
                             "type": "column_ref",
                             "table": null,
                             "column": "id"
@@ -1230,15 +1231,16 @@ describe('AST', () => {
             const expr = [
                 {
                 "expr": {
-                  "type": "column_ref",
-                  "table": null,
-                  "column": "gender"
+                    "collate": null,
+                    "type": "column_ref",
+                    "table": null,
+                    "column": "gender"
                 },
                 "as": null
                 }
             ]
             expect(orderOrPartitionByToSQL(expr, 'default')).to.equal('DEFAULT `gender`')
-          })
+        })
     })
 
     describe('transactsql', () => {
@@ -1268,5 +1270,99 @@ describe('AST', () => {
             const sql = parser.exprToSQL(ast.where);
             expect(sql).to.equal('`id` = 1');
         });
+        
+        it('should be able to get columns from ast', () => {
+            const ast = parser.astify(`SELECT
+                campaign.id,
+                ad_group.id,
+                'http://' + ad_group_ad.ad.final_urls + '?tm=123' as url,
+                ad_group_ad.resource_name,
+                ad_group_ad.policy_summary.policy_topic_entries as policy_topic_entries,
+                ad_group_ad.policy_summary.policy_topic_entries:topic as topic,
+                ad_group_ad.policy_summary.policy_topic_entries:topic + '!' as topic2
+                FROM ad_group_ad`);
+            const columns = parser.columnsToSQL(ast.columns, ast.from);
+            expect(columns).to.be.eql([
+                '`campaign`.`id`',
+                '`ad_group`.`id`',
+                "'http://' + `ad_group_ad`.`ad`.`final_urls` + '?tm=123' AS `url`",
+                '`ad_group_ad`.`resource_name`',
+                '`ad_group_ad`.`policy_summary`.`policy_topic_entries` AS `policy_topic_entries`',
+                '`ad_group_ad`.`policy_summary`.`policy_topic_entries:topic` AS `topic`',
+                "`ad_group_ad`.`policy_summary`.`policy_topic_entries:topic` + '!' AS `topic2`"
+            ])
+            expect(parser.columnsToSQL('*', ast.from)).to.be.eql([])
+            expect(parser.columnsToSQL('', ast.from)).to.be.eql([])
+        });
+    })
+    
+    describe('jsonb operator ast order', () => {
+      it('should parse jsonb operator ast order correct', () => {
+        const sql = `SELECT company.name
+          FROM company
+          WHERE company.categories ->> 'items' ILIKE '%Health Care%'
+          OR company.categories ->> 'items' ILIKE '%Health & Wellness%'`
+        const option = { database: 'postgresql' }
+        const ast = parser.astify(sql, option)
+        expect(parser.sqlify(ast, option)).to.be.equal(`SELECT "company".name FROM "company" WHERE "company".categories ->> 'items' ILIKE '%Health Care%' OR "company".categories ->> 'items' ILIKE '%Health & Wellness%'`)
+        expect(ast.where).to.be.eql({
+          "type": "binary_expr",
+          "operator": "OR",
+          "left": {
+            "type": "binary_expr",
+            "operator": "ILIKE",
+            "left": {
+              "type": "binary_expr",
+              "operator": "->>",
+              "left": {
+                "collate": null,
+                "type": "column_ref",
+                "table": "company",
+                "column": {
+                  "expr": {
+                    "type": "default",
+                    "value": "categories"
+                  }
+                }
+              },
+              "right": {
+                "type": "single_quote_string",
+                "value": "items"
+              }
+            },
+            "right": {
+              "type": "single_quote_string",
+              "value": "%Health Care%"
+            }
+          },
+          "right": {
+            "type": "binary_expr",
+            "operator": "ILIKE",
+            "left": {
+              "type": "binary_expr",
+              "operator": "->>",
+              "left": {
+                "collate": null,
+                "type": "column_ref",
+                "table": "company",
+                "column": {
+                  "expr": {
+                    "type": "default",
+                    "value": "categories"
+                  }
+                }
+              },
+              "right": {
+                "type": "single_quote_string",
+                "value": "items"
+              }
+            },
+            "right": {
+              "type": "single_quote_string",
+              "value": "%Health & Wellness%"
+            }
+          }
+        })
+      })
     })
 });

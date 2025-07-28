@@ -2,6 +2,14 @@ import { hasVal, toUpper } from './util'
 import { exprToSQL, orderOrPartitionByToSQL } from './expr'
 import { overToSQL } from './over'
 
+function windowFrameExprToSQL(windowFrameExpr) {
+  if (!windowFrameExpr) return
+  const { type } = windowFrameExpr
+  if (type === 'rows') {
+    return [toUpper(type), exprToSQL(windowFrameExpr.expr)].filter(hasVal).join(' ')
+  }
+  return exprToSQL(windowFrameExpr)
+}
 function windowSpecificationToSQL(windowSpec) {
   const {
     name,
@@ -13,7 +21,7 @@ function windowSpecificationToSQL(windowSpec) {
     name,
     orderOrPartitionByToSQL(partitionby, 'partition by'),
     orderOrPartitionByToSQL(orderby, 'order by'),
-    toUpper(windowFrame),
+    windowFrameExprToSQL(windowFrame),
   ]
   return result.filter(hasVal).join(' ')
 }
@@ -34,24 +42,11 @@ function namedWindowExprListToSQL(namedWindowExprInfo) {
   return expr.map(namedWindowExprToSQL).join(', ')
 }
 
-function isConsiderNullsInArgs(fnName) {
-  // position of IGNORE/RESPECT NULLS varies by function
-  switch (toUpper(fnName)) {
-    case 'NTH_VALUE':
-    case 'LEAD':
-    case 'LAG':
-      return false
-    default:
-      return true
-  }
-}
-
 function constructArgsList(expr) {
-  const { args, name, consider_nulls = '' } = expr
-  const argsList = args ? exprToSQL(args).join(', ') : ''
+  const { args, name, consider_nulls = '', separator = ', ' } = expr
+  const argsList = args ? exprToSQL(args).join(separator) : ''
   // cover Syntax from FN_NAME(...args [RESPECT NULLS]) [RESPECT NULLS]
-  const isConsidernulls = isConsiderNullsInArgs(name)
-  const result = [name, '(', argsList, !isConsidernulls && ')', consider_nulls && ' ', consider_nulls, isConsidernulls && ')']
+  const result = [name, '(', argsList, ')', consider_nulls && ' ', consider_nulls]
   return result.filter(hasVal).join('')
 }
 

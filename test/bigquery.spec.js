@@ -378,7 +378,7 @@ describe('BigQuery', () => {
       ]
     },
     {
-      title: 'select offset after funtion',
+      title: 'select offset after function',
       sql: [
         "select split('To - be - split', ' - ')[OFFSET(0)] from abc",
         "SELECT split('To - be - split', ' - ')[OFFSET(0)] FROM abc"
@@ -854,6 +854,50 @@ describe('BigQuery', () => {
         'SELECT * WHERE created_at >= DATE_SUB(CURRENT_DATE(), INTERVAL 1 WEEK)'
       ]
     },
+    {
+      title: 'create view',
+      sql: [
+        `CREATE OR REPLACE VIEW \`project\`.\`database\`.\`schema\` AS (SELECT
+            employee_id,
+            first_name,
+            last_name,
+            salary,
+            hire_date,
+            modified
+        FROM
+            database.table
+        WHERE salary > 50000.00)`,
+        'CREATE OR REPLACE VIEW project.database.schema AS (SELECT employee_id, first_name, last_name, salary, hire_date, modified FROM database.table WHERE salary > 50000.00)'
+      ]
+    },
+    {
+      title: 'quoted column',
+      sql: [
+        'SELECT `Customer id` FROM transactions',
+        'SELECT `Customer id` FROM transactions'
+      ]
+    },
+    {
+      title: 'math operation together with array access',
+      sql: [
+        'SELECT my_array[0]/100 FROM table1',
+        'SELECT my_array[0] / 100 FROM table1'
+      ]
+    },
+    {
+      title: 'safe_cast with split array index',
+      sql: [
+        "select SAFE_CAST(SPLIT(t1.CREATED_BY, 'a')[0] AS STRING) AS FIRST_SPLIT_ARG, from  table1 t1 where CREATED_BY = 'node-sql-parser' AND FIRST_SPLIT_ARG = @FIRST_SPLIT_ARG limit 1",
+        "SELECT SAFE_CAST(SPLIT(t1.CREATED_BY, 'a')[0] AS STRING) AS FIRST_SPLIT_ARG FROM table1 AS t1 WHERE CREATED_BY = 'node-sql-parser' AND FIRST_SPLIT_ARG = @FIRST_SPLIT_ARG LIMIT 1"
+      ]
+    },
+    {
+      title: 'quoted table name',
+      sql: [
+        'SELECT COUNT(*) FROM `bigquery-public-data.blah.events_*`',
+        'SELECT COUNT(*) FROM `bigquery-public-data.blah.events_*`'
+      ]
+    }
   ]
 
   SQL_LIST.forEach(sqlInfo => {
@@ -911,6 +955,7 @@ describe('BigQuery', () => {
     const ast = parser.astify(sql, opt)
     const column = {
       expr: {
+        collate: null,
         type: 'column_ref',
         table: 'a',
         column: 'b',
@@ -933,5 +978,13 @@ describe('BigQuery', () => {
     sql = 'SELECT DATE_TRUNC(my_date, YEAR)'
     ast = parser.parse(sql, opt)
     expect(ast.columnList).to.be.eql(['select::null::my_date'])
+  })
+  it('should support table function in from clause', () => {
+    let sql = 'SELECT * FROM table_function();'
+    expect(getParsedSql(sql, opt)).to.equal('SELECT * FROM table_function()')
+    sql = 'SELECT * FROM table_function(1,2,3);'
+    expect(getParsedSql(sql, opt)).to.equal('SELECT * FROM table_function(1, 2, 3)')
+    sql = 'SELECT * FROM table_function(@param1, @param2, @param3);'
+    expect(getParsedSql(sql, opt)).to.equal('SELECT * FROM table_function(@param1, @param2, @param3)')
   })
 })

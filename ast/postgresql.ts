@@ -7,11 +7,11 @@
 
 export type start = multiple_stmt | create_function_stmt;
 
-export type cmd_stmt = drop_stmt | create_stmt | declare_stmt | truncate_stmt | rename_stmt | call_stmt | use_stmt | alter_stmt | set_stmt | lock_stmt | show_stmt | deallocate_stmt | grant_revoke_stmt | if_else_stmt | raise_stmt | execute_stmt | for_loop_stmt | transaction_stmt;
+export type cmd_stmt = drop_stmt | create_stmt | declare_stmt | truncate_stmt | rename_stmt | call_stmt | use_stmt | alter_stmt | set_stmt | lock_stmt | show_stmt | deallocate_stmt | grant_revoke_stmt | if_else_stmt | raise_stmt | execute_stmt | for_loop_stmt | transaction_stmt | comment_on_stmt;
 
 export type create_stmt = create_table_stmt | create_constraint_trigger | create_extension_stmt | create_index_stmt | create_sequence | create_db_stmt | create_domain_stmt | create_type_stmt | create_view_stmt | create_aggregate_stmt;
 
-export type alter_stmt = alter_table_stmt | alter_schema_stmt | alter_domain_type_stmt | alter_function_stmt | alter_aggregate_stmt;
+export type alter_stmt = alter_table_stmt | alter_schema_stmt | alter_domain_type_stmt | alter_function_stmt | alter_aggregate_stmt | alter_sequence_stmt;
 
 export type crud_stmt = union_stmt | update_stmt | replace_insert_stmt | insert_no_columns_stmt | delete_stmt | cmd_stmt | proc_stmts;
 
@@ -30,6 +30,8 @@ export interface union_stmt_node extends select_stmt_node  {
 export type union_stmt = AstStatement<union_stmt_node>;
 
 export type if_not_exists_stmt = 'IF NOT EXISTS';
+
+export type if_exists = 'IF EXISTS';
 
 export type nameOrLiteral = literal_string | { type: 'same', value: string; };
 
@@ -50,7 +52,8 @@ export type create_db_stmt_t = {
         type: 'create',
         keyword: 'database' | 'schema',
         if_not_exists?: 'if not exists',
-        database: string,
+        database?: { db: ident_without_kw_type, schema: [ident_without_kw_type] };
+        schema?: { db: ident_without_kw_type, schema: [ident_without_kw_type] };
         create_definitions?: create_db_definition
       }
 
@@ -70,7 +73,7 @@ export type create_view_stmt_t = {
         recursive?: 'recursive',
         view: table_name,
         columns?: column_list,
-        select: select_stmt_nake,
+        select: select_stmt,
         with_options?: with_view_options,
         with?: string,
       }
@@ -108,12 +111,12 @@ export type declare_stmt_t = { type: 'declare'; declare: declare_variable_item[]
 
 export type declare_stmt = AstStatement<declare_stmt_t>;
 
-export type create_func_opt = literal_string | { type: 'as'; begin?: string; declare?: declare_stmt; expr: multiple_stmt; end?: string; symbol: string; } | literal_numeric | { type: "set"; parameter: ident_name; value?: { prefix: string; expr: expr }};
+export type create_func_opt = literal_string | { type: 'as'; begin?: string; declare?: declare_stmt; expr: multiple_stmt; end?: string; symbol: string; } | literal_numeric | { type: "set"; parameter: ident_name; value?: { prefix: string; expr: expr }} | return_stmt;
 
 export type create_function_stmt_t = {
         type: 'create';
         replace?: string;
-        name: { schema?: string; name: string };
+        name: proc_func_name;
         args?: alter_func_args;
         returns?: func_returns;
         keyword: 'function';
@@ -122,13 +125,15 @@ export type create_function_stmt_t = {
 
 export type create_function_stmt = AstStatement<create_function_stmt_t>;
 
+export type create_type_stmt_option = { as: 'as'; resource: string; create_definitions: expr_list | create_column_definition_list; } | ignore;
+
 export type create_type_stmt_t = {
         type: 'create',
         keyword: 'type',
         name: { schema: string; name: string },
         as?: string,
         resource?: string,
-        create_definitions?: any
+        create_definitions?: expr_list | create_column_definition_list;
       }
 
 export type create_type_stmt = AstStatement<create_type_stmt_t>;
@@ -149,6 +154,7 @@ export type create_table_stmt_node = create_table_stmt_node_simple | create_tabl
         type: 'create';
         keyword: 'table';
         temporary?: 'temporary';
+        unlogged?: 'unlogged';
         if_not_exists?: 'if not exists';
         table: table_ref_list;
       }
@@ -197,9 +203,12 @@ export type create_sequence_definition = sequence_definition_increment | sequenc
 
 export type create_sequence_definition_list = create_sequence_definition[];
 
+export type include_column = { type: 'include', keyword: 'include', columns: column_list };
+
 export interface create_index_stmt_node {
       type: 'create';
       index_type?: 'unique';
+      if_not_exists: if_not_exists_stmt;
       keyword: 'index';
       concurrently?: 'concurrently';
       index: string;
@@ -207,6 +216,7 @@ export interface create_index_stmt_node {
       table: table_name;
       index_using?: index_type;
       index_columns: column_order[];
+      include?: column_list_items;
       with?: index_option[];
       with_before_where: true;
       tablespace?: {type: 'origin'; value: string; }
@@ -274,7 +284,7 @@ export type create_table_definition = create_definition[];
 
 export type create_definition = create_column_definition | create_index_definition | create_fulltext_spatial_index_definition | create_constraint_definition;
 
-export type column_definition_opt = column_constraint | { auto_increment: 'auto_increment'; } | { unique: 'unique' | 'unique key'; } | { unique: 'key' | 'primary key'; } | { comment: keyword_comment; } | { collate: collate_expr; } | { column_format: column_format; } | { storage: storage } | { reference_definition: reference_definition; } | { character_set: collate_expr };
+export type column_definition_opt = column_constraint | { auto_increment: 'auto_increment'; } | { unique: 'unique' | 'unique key'; } | { unique: 'key' | 'primary key'; } | { comment: keyword_comment; } | { collate: collate_expr; } | { column_format: column_format; } | { storage: storage } | { reference_definition: reference_definition; } | { check: check_constraint_definition; } | { character_set: { type: 'CHARACTER SET'; symbol: '=' | null; value: ident_without_kw_type; } };
 
 
 
@@ -290,6 +300,8 @@ export type column_definition_opt_list = {
         storage?: storage;
         reference_definition?: reference_definition;
       };
+
+export type create_column_definition_list = create_column_definition[];
 
 
 
@@ -309,35 +321,52 @@ export type create_column_definition = {
         resource: 'column';
       };
 
-export type column_constraint = { nullable: literal_null | literal_not_null; default_val: default_expr; };
+export type column_constraint = { constraint: constraint_name; } | { nullable: literal_null | literal_not_null; default_val: default_expr; };
 
-export type collate_expr = { type: 'collate'; symbol: '=' | null; value: ident; };
+export type collate_expr = { type: 'collate'; keyword: 'collate'; collate: { symbol: '=' | null ; name: ident_type; }};
 
 export type column_format = { type: 'column_format'; value: 'fixed' | 'dynamic' | 'default'; };
 
 export type storage = { type: 'storage'; value: 'disk' | 'memory' };
 
-export type default_arg_expr = { type: 'default'; keyword: string, value: literal | expr; };
+export type default_arg_expr = { type: 'default'; keyword: string, value: expr; };
 
-export type default_expr = { type: 'default'; value: literal | expr; };
+export type default_expr = { type: 'default'; value: expr; };
 
 export type drop_index_opt = (ALTER_ALGORITHM | ALTER_LOCK)[];
 
 export interface drop_stmt_node {
         type: 'drop';
         keyword: 'table';
+        prefix?: string;
         name: table_ref_list;
       }
 
 export interface drop_index_stmt_node {
         type: 'drop';
-        prefix?: 'CONCURRENTLY';
+        prefix?: string;
         keyword: string;
         name: column_ref;
         options?: 'cascade' | 'restrict';
       }
 
-export type drop_stmt = AstStatement<drop_stmt_node> | AstStatement<drop_index_stmt_node>;
+export interface drop_index_stmt_node {
+        type: 'drop';
+        prefix?: string;
+        keyword: string;
+        name: column_ref_list;
+        options?: 'cascade' | 'restrict';
+      }
+
+export interface drop_view_stmt_node {
+        type: 'drop';
+        prefix?: string;
+        keyword: 'view';
+        name: table_ref_list;
+        options?: view_options;
+      }
+
+export type drop_stmt = AstStatement<drop_stmt_node> | AstStatement<drop_index_stmt_node> | AstStatement<drop_view_stmt_node>;
 
 export type truncate_table_name = table_name & { suffix?: string };
 
@@ -370,6 +399,28 @@ export type alter_func_args = alter_func_arg_item[];
 
 export type alter_aggregate_stmt = AstStatement<alter_resource_stmt_node>;
 
+export type alter_sequence_definition = { "resource": "sequence", prefix?: string,value: literal_string }
+
+export type alter_sequence_definition_owner = alter_sequence_definition;
+
+export type alter_sequence_definition_rename = alter_sequence_definition;
+
+export type alter_sequence_definition_set = alter_sequence_definition;
+
+export type alter_sequence_definition = alter_sequence_definition_owner | alter_sequence_definition_rename | alter_sequence_definition_set;
+
+export type alter_sequence_definition_list = alter_sequence_definition[];
+
+export type alter_sequence_stmt = {
+        type: 'alter',
+        keyword: 'sequence',
+        if_exists?: 'if exists',
+        sequence: [table_name],
+        create_definitions?: create_sequence_definition_list | alter_sequence_definition_list
+      }
+
+export type alter_sequence_stmt = AstStatement<alter_sequence_stmt>;
+
 export type alter_function_stmt = AstStatement<alter_resource_stmt_node>;
 
 export interface alter_resource_stmt_node {
@@ -387,6 +438,9 @@ export type alter_schema_stmt = AstStatement<alter_resource_stmt_node>;
 export interface alter_table_stmt_node {
         type: 'alter';
         table: table_ref_list;
+        keyword: 'table';
+        if_exists: if_exists;
+        prefix?: literal_string;
         expr: alter_action_list;
       }
 
@@ -394,7 +448,7 @@ export type alter_table_stmt = AstStatement<alter_table_stmt_node>;
 
 export type alter_action_list = alter_action[];
 
-export type alter_action = ALTER_ADD_COLUMN | ALTER_ADD_CONSTRAINT | ALTER_DROP_COLUMN | ALTER_ADD_INDEX_OR_KEY | ALTER_ADD_FULLETXT_SPARITAL_INDEX | ALTER_RENAME | ALTER_ALGORITHM | ALTER_LOCK;
+export type alter_action = ALTER_ADD_COLUMN | ALTER_ADD_CONSTRAINT | ALTER_DROP_COLUMN | ALTER_ADD_INDEX_OR_KEY | ALTER_ADD_FULLETXT_SPARITAL_INDEX | ALTER_RENAME | ALTER_ALGORITHM | ALTER_LOCK | ALTER_OWNER_TO | ALTER_COLUMN_DATA_TYPE | ALTER_COLUMN_DEFAULT | ALTER_COLUMN_NOT_NULL;
 
 
 
@@ -402,6 +456,7 @@ export type ALTER_ADD_COLUMN = {
         action: 'add';
         keyword: KW_COLUMN;
         resource: 'column';
+        if_not_exists: if_not_exists_stmt;
         type: 'alter';
       } & create_column_definition;;
 
@@ -411,6 +466,7 @@ export type ALTER_DROP_COLUMN = {
         action: 'drop';
         collumn: column_ref;
         keyword: KW_COLUMN;
+        if_exists: if_exists;
         resource: 'column';
         type: 'alter';
       };
@@ -467,6 +523,35 @@ export type ALTER_LOCK = {
 
 
 
+export type ALTER_COLUMN_DATA_TYPE = {
+        action: 'alter';
+        keyword?: KW_COLUMN;
+        using?: expr;
+        type: 'alter';
+      } & create_column_definition;;
+
+
+
+
+
+export type ALTER_COLUMN_DEFAULT = {
+        action: 'alter';
+        keyword?: KW_COLUMN;
+        default_val?: { type: 'set default', value: expr };
+        type: 'alter';
+      } & create_column_definition;;
+
+
+
+export type ALTER_COLUMN_NOT_NULL = {
+        action: 'alter';
+        keyword?: KW_COLUMN;
+        nullable: literal_not_null;
+        type: 'alter';
+      } & create_column_definition;;
+
+
+
 export type create_index_definition = {
          index: column;
          definition: cte_column_definition;
@@ -494,7 +579,7 @@ export type constraint_name = { keyword: 'constraint'; constraint: ident; };
 
 export type create_constraint_check = {
       constraint?: constraint_name['constraint'];
-      definition: or_and_where_expr;
+      definition: [or_and_where_expr];
       keyword?: constraint_name['keyword'];
       constraint_type: 'check';
       resource: 'constraint';
@@ -538,6 +623,17 @@ export type create_constraint_foreign = {
 
 
 
+export type check_constraint_definition = {
+      constraint_type: 'check';
+      keyword: constraint_name['keyword'];
+      constraint?: constraint_name['constraint'];
+      definition: [or_and_expr];
+      enforced?: 'enforced' | 'not enforced';
+      resource: 'constraint';
+    };
+
+
+
 
 
 export type reference_definition = {
@@ -551,6 +647,8 @@ export type reference_definition = {
     };
 
 export type on_reference = { type: 'on delete' | 'on update'; value: reference_option; };
+
+export type view_options = 'restrict' | 'cascade';;
 
 export type reference_option = { type: 'function'; name: string; args: expr_list; } | 'restrict' | 'cascade' | 'set null' | 'no action' | 'set default' | 'current_timestamp';
 
@@ -596,7 +694,7 @@ export type create_option_character_set_kw = string;
 export type create_option_character_set = {
       keyword: 'character set' | 'charset' | 'collate' | 'default character set' | 'default charset' | 'default collate';
       symbol: '=';
-      value: ident_name;
+      value: ident_without_kw_type;
       };
 
 
@@ -618,7 +716,8 @@ export type rename_stmt = AstStatement<rename_stmt_node>;
 
 export interface set_stmt_node {
         type: 'set';
-        expr: assign_stmt & { keyword?: 'GLOBAL' | 'SESSION' | 'LOCAL' | 'PERSIST' | 'PERSIST_ONLY'; };
+        keyword?: 'GLOBAL' | 'SESSION' | 'LOCAL' | 'PERSIST' | 'PERSIST_ONLY' | undefined;
+        expr: assign_stmt_list;
       }
 
 export type set_stmt = AstStatement<set_stmt_node>;
@@ -766,21 +865,45 @@ export interface for_loop_stmt_t {
 
 export type for_loop_stmt = AstStatement<for_loop_stmt_t>;
 
+export type transaction_mode_isolation_level = { type: 'origin'; value: string; } | ignore;
+
+export type transaction_mode = { type: 'origin'; value: string; } | ignore;
+
+export type transaction_mode_list = transaction_mode[];
+
 export interface transaction_stmt_t {
         type: 'transaction';
         expr: {
-          type: 'origin',
-          value: string
+          action: {
+            type: 'origin',
+            value: string
+          };
+          keyword?: string;
+          modes?: transaction_mode[];
         }
       }
 
-export type transaction_stmt = AstStatement<transaction_stmt_t>;
+export type transaction_stmt = AstStatement<transaction_stmt_t> | ignore;
+
+export type comment_on_option = { type: string; name: table_name; } | { type: string; name: column_ref; } | { type: string; name: ident; };
+
+export type comment_on_is = { keyword: 'is'; expr: literal_string | literal_null; };
+
+export interface comment_on_stmt_t {
+        type: 'comment';
+        target: comment_on_option;
+        expr: comment_on_is;
+      }
+
+export type comment_on_stmt = AstStatement<comment_on_stmt_t>;
 
 export interface select_stmt_node extends select_stmt_nake  {
        parentheses: true;
       }
 
-export type select_stmt = { type: 'select'; } | select_stmt_nake | select_stmt_node;
+export type select_stmt_parentheses = select_stmt_node;
+
+export type select_stmt = { type: 'select'; } | select_stmt_nake | select_stmt_parentheses;
 
 export type with_clause = cte_definition[] | [cte_definition & { recursive: true; }];
 
@@ -788,7 +911,7 @@ export type cte_definition = { name: { type: 'default'; value: string; }; stmt: 
 
 export type cte_column_definition = column_ref_list;
 
-export type distinct_on = {type: string; columns: column_ref_list;} | { type: string | undefined; };
+export type distinct_on = {type: string; columns: column_list_items;} | { type: string | undefined; };
 
 
 
@@ -812,7 +935,9 @@ export type option_clause = query_option[];
 
 export type query_option = 'SQL_CALC_FOUND_ROWS'| 'SQL_CACHE'| 'SQL_NO_CACHE'| 'SQL_BIG_RESULT'| 'SQL_SMALL_RESULT'| 'SQL_BUFFER_RESULT';
 
-export type column_clause = 'ALL' | '*' | column_list_item[] | column_list_item[];
+export type column_list_items = column_list_item[];
+
+export type column_clause = 'ALL' | '*' | column_list_item[] | column_list_items;
 
 export type array_index = { brackets: boolean, number: number };
 
@@ -820,9 +945,9 @@ export type array_index_list = array_index[];
 
 export type expr_item = binary_column_expr & { array_index: array_index };
 
-export type cast_data_type = data_type & { quoted?: string };
+export type column_item_suffix = [{ type: 'origin'; value: string; }, quoted_ident_type | column_ref];
 
-export type column_list_item = { expr: expr; as: null; } | { type: 'cast'; expr: expr; symbol: '::'; target: cast_data_type;  as?: null; arrows?: ('->>' | '->')[]; property?: (literal_string | literal_numeric)[]; } | { expr: column_ref; as: null; } | { type: 'expr'; expr: expr; as?: alias_clause; };
+export type column_list_item = { expr: expr; as: null; } | { type: 'cast'; expr: expr; symbol: '::'; target: cast_data_type[];  as?: null; } | { expr: column_ref; as: null; } | { type: 'expr'; expr: expr; as?: alias_clause; };
 
 
 
@@ -862,10 +987,10 @@ export type table_ref = table_base | table_join;
 
 
 
-export type table_join = table_base & {join: join_op; using: ident_name[]; } | table_base & {join: join_op; on?: on_clause; } | {
+export type table_join = table_base & {join: join_op; using: ident_without_kw_type[]; } | table_base & {join: join_op; on?: on_clause; } | {
       expr: (union_stmt | table_ref_list) & { parentheses: true; };
       as?: alias_clause;
-      join: join_op;
+      join: join_op | set_op;
       on?: on_clause;
     };
 
@@ -898,6 +1023,7 @@ export type BINARY_OPERATORS =
       | "NOT BETWEEN"
       | "IS"
       | "IS NOT"
+      | "ILIKE"
       | "LIKE"
       | "@>"
       | "<@"
@@ -926,9 +1052,7 @@ export type on_clause = or_and_where_expr;
 
 export type where_clause = or_and_where_expr;
 
-
-
-export type group_by_clause = expr_list['value'];
+export type group_by_clause = { columns: expr_list['value']; modifiers: literal_string[]; };
 
 export type column_ref_list = column_ref[];
 
@@ -948,15 +1072,15 @@ export type window_specification = { name: null; partitionby: partition_by_claus
 
 export type window_specification_frameless = { name: null; partitionby: partition_by_clause; orderby: order_by_clause; window_frame_clause: null };
 
-export type window_frame_clause = string;
+export type window_frame_clause = { type: 'row'; expr: window_frame_following / window_frame_preceding } | binary_expr;
 
 export type window_frame_following = string | window_frame_current_row;
 
 export type window_frame_preceding = string | window_frame_current_row;
 
-export type window_frame_current_row = { type: 'single_quote_string'; value: string };
+export type window_frame_current_row = { type: 'origin'; value: string };
 
-export type window_frame_value = literal_string | literal_numeric;
+export type window_frame_value = { type: 'origin'; value: string } | literal_numeric;
 
 
 
@@ -993,7 +1117,9 @@ export interface table_ref_addition extends table_name {
        export interface delete_stmt_node {
          type: 'delete';
          table?: table_ref_list | [table_ref_addition];
+         from?: from_clause;
          where?: where_clause;
+         returning?: returning_stmt;
       }
 
 export type delete_stmt = AstStatement<delete_stmt_node>;
@@ -1042,7 +1168,7 @@ export type value_list = value_item[];
 
 export type value_item = expr_list;
 
-export type expr_list = { type: 'expr_list'; value: expr[] };
+export type expr_list = { type: 'expr_list'; value: expr[]; parentheses?: boolean; separator?: string; };
 
 export type interval_expr = { type: 'interval', expr: expr; unit: interval_unit; };
 
@@ -1064,7 +1190,7 @@ export type case_expr = {
 
 export type case_when_then_list = case_when_then[];
 
-export type case_when_then = { type: 'when'; cond: or_and_where_expr; result: expr; };
+export type case_when_then = { type: 'when'; cond: or_and_expr; result: expr_item; };
 
 export type case_else = { type: 'else'; condition?: never; result: expr; };
 
@@ -1099,7 +1225,7 @@ export type exists_expr = unary_expr;
 
 export type exists_op = 'NOT EXISTS' | KW_EXISTS;
 
-export type comparison_op_right = arithmetic_op_right | in_op_right | between_op_right | is_op_right | like_op_right | jsonb_op_right | regex_op_right;
+export type comparison_op_right = arithmetic_op_right | in_op_right | between_op_right | is_op_right | like_op_right | regex_op_right;
 
 export type arithmetic_op_right = { type: 'arithmetic'; tail: any };
 
@@ -1131,8 +1257,6 @@ export type like_op_right = { op: like_op; right: (literal | comparison_expr) & 
 
 export type in_op_right = {op: in_op; right: expr_list | var_decl | literal_string; };
 
-export type jsonb_op_right = { op: string; right: expr };
-
 export type additive_expr = binary_expr;
 
 export type additive_operator = "+" | "-";
@@ -1145,9 +1269,13 @@ export type column_ref_array_index = column_ref;
 
 export type primary = cast_expr | or_and_where_expr | var_decl | { type: 'origin'; value: string; };
 
-export type unary_expr_or_primary = primary | unary_expr;
+export type unary_expr_or_primary = jsonb_expr | unary_expr;
 
 export type unary_operator = "!" | "-" | "+" | "~";
+
+export type primary_array_index = primary & { array_index: array_index };
+
+export type jsonb_expr = primary_array_index | binary_expr;
 
 export type string_constants_escape = { type: 'origin'; value: string; };
 
@@ -1160,14 +1288,12 @@ export type column_ref = string_constants_escape | {
         schema: string;
         table: string;
         column: column | '*';
-        arrows?: ('->>' | '->')[];
-        property?: (literal_string | literal_numeric)[];
+        collate?: collate_expr;
       } | {
         type: 'column_ref';
         table: ident;
         column: column | '*';
-        arrows?: ('->>' | '->')[];
-        property?: (literal_string | literal_numeric)[];
+        collate?: collate_expr;
       };
 
 export type column_ref_quoted = unknown;
@@ -1268,6 +1394,10 @@ export type aggr_array_agg = { type: 'aggr_func'; args:count_arg; name: 'ARRAY_A
 
 export type star_expr = { type: 'star'; value: '*' };
 
+export type position_func_args = expr_list;
+
+export type position_func_clause = { type: 'function'; name: string; args: expr_list; };
+
 export type trim_position = "BOTH" | "LEADING" | "TRAILING";
 
 export type trim_rem = expr_list;
@@ -1276,7 +1406,15 @@ export type trim_func_clause = { type: 'function'; name: proc_func_name; args: e
 
 export type tablefunc_clause = { type: 'tablefunc'; name: proc_func_name; args: expr_list; as: func_call };
 
-export type func_call = trim_func_clause | tablefunc_clause | { type: 'function'; name: proc_func_name; args: expr_list; suffix: literal_string; } | { type: 'function'; name: proc_func_name; args: expr_list; over?: over_partition; } | extract_func | { type: 'function'; name: proc_func_name; over?: on_update_current_timestamp; } | { type: 'function'; name: proc_func_name; args: expr_list; };
+export type substring_funcs_clause = { type: 'function'; name: 'substring'; args: expr_list; };
+
+export type make_interval_func_args_item = { type: 'func_arg', value: { name: ident_name; symbol: '=>', value: literal_numeric; } };
+
+export type make_interval_func_args = make_interval_func_args_item[] | expr_list;
+
+export type make_interval_func_clause = { type: 'function'; name: proc_func_name; args: make_interval_func_args; };
+
+export type func_call = position_func_clause | trim_func_clause | tablefunc_clause | substring_funcs_clause | make_interval_func_clause | { type: 'function'; name: proc_func_name; args: expr_list; suffix: literal_string; } | { type: 'function'; name: proc_func_name; args: expr_list; over?: over_partition; } | extract_func | { type: 'function'; name: proc_func_name; over?: on_update_current_timestamp; } | { type: 'function'; name: proc_func_name; args: expr_list; };
 
 export type extract_filed = 'string';
 
@@ -1286,14 +1424,14 @@ export type scalar_time_func = KW_CURRENT_DATE | KW_CURRENT_TIME | KW_CURRENT_TI
 
 export type scalar_func = scalar_time_func | KW_CURRENT_USER | KW_USER | KW_SESSION_USER | KW_SYSTEM_USER | "NTILE";
 
+export type cast_data_type = data_type & { quoted?: string };
+
 
 
 export type cast_double_colon = {
         as?: alias_clause,
         symbol: '::' | 'as',
-        target: data_type;
-        arrows?: ('->>' | '->')[];
-        property?: (literal_string | literal_numeric)[];
+        target: cast_data_type[];
       };
 
 
@@ -1307,7 +1445,7 @@ export type cast_expr = {
         keyword: 'cast';
       } & cast_double_colon | ({
         type: 'cast';
-        expr: literal | aggr_func | func_call | case_expr | interval_expr | column_ref | param
+        expr: literal | jsonb_expr | aggr_func | func_call | case_expr | interval_expr | column_ref | param
           | expr;
         keyword: 'cast';
       } & cast_double_colon);
@@ -1348,6 +1486,10 @@ export type escape_char = string;
 export type line_terminator = string;
 
 export type literal_numeric = number | { type: 'bigint'; value: string; };
+
+type integer = never;
+
+type double_float = never;
 
 export type int = string;
 
@@ -1391,6 +1533,8 @@ type KW_CREATE = never;
 
 type KW_TEMPORARY = never;
 
+type KW_UNLOGGED = never;
+
 type KW_TEMP = never;
 
 type KW_DELETE = never;
@@ -1400,6 +1544,8 @@ type KW_INSERT = never;
 type KW_RECURSIVE = never;
 
 type KW_REPLACE = never;
+
+type KW_RETURN = never;
 
 type KW_RETURNING = never;
 
@@ -1432,6 +1578,8 @@ type KW_SEQUENCE = never;
 type KW_TABLESPACE = never;
 
 type KW_COLLATE = never;
+
+type KW_COLLATION = never;
 
 type KW_DEALLOCATE = never;
 
@@ -1581,6 +1729,8 @@ type KW_MEDIUMTEXT = never;
 
 type KW_LONGTEXT = never;
 
+type KW_MEDIUMINT = never;
+
 type KW_BIGINT = never;
 
 type KW_ENUM = never;
@@ -1602,6 +1752,8 @@ type KW_ROWS = never;
 type KW_TIME = never;
 
 type KW_TIMESTAMP = never;
+
+type KW_TIMESTAMPTZ = never;
 
 type KW_TRUNCATE = never;
 
@@ -1685,8 +1837,6 @@ type KW_VAR_PRE_DOLLAR_DOUBLE = never;
 
 type KW_VAR_PRE = never;
 
-type KW_RETURN = never;
-
 type KW_ASSIGN = never;
 
 type KW_DOUBLE_COLON = never;
@@ -1700,6 +1850,8 @@ type KW_ADD = never;
 type KW_COLUMN = never;
 
 type KW_INDEX = never;
+
+type KW_TYPE = never;
 
 type KW_KEY = never;
 
@@ -1791,7 +1943,11 @@ export interface proc_stmt_t { type: 'proc'; stmt: assign_stmt | return_stmt; va
 
 export type proc_stmt = AstStatement<proc_stmt_t>;
 
-export type assign_stmt = { type: 'assign'; left: var_decl | without_prefix_var_decl; symbol: ':=' | '='; right: proc_expr; };
+export type assign_stmt_list = assign_stmt[];
+
+export type assign_stmt_timezone = { type: 'assign';  left: expr_list; symbol: 'to'; right: interval_unit; } | { type: 'assign'; left: literal_string; symbol?: 'to'; right: literal; };
+
+export type assign_stmt = assign_stmt_timezone | { type: 'assign'; left: var_decl | without_prefix_var_decl; symbol: ':=' | '='; right: proc_expr; };
 
 export type return_stmt = { type: 'return'; expr: proc_expr; };
 
@@ -1834,6 +1990,8 @@ export type data_type = {
 
 
 
+
+
 export type array_type = data_type;
 
 
@@ -1845,8 +2003,6 @@ export type boolean_type = data_type;
 export type binary_type = data_type;
 
 export type character_varying = string;
-
-
 
 export type character_string_type = data_type;
 
@@ -1868,11 +2024,7 @@ export type timezone = string[];;
 
 
 
-
-
 export type time_type = data_type;
-
-
 
 
 
@@ -1886,6 +2038,8 @@ export type enum_type = data_type;
 
 export type json_type = data_type;
 
+export type geometry_type_args = { length: string, scale?: number | null };
+
 
 
 export type geometry_type = data_type;
@@ -1893,8 +2047,6 @@ export type geometry_type = data_type;
 
 
 export type serial_interval_type = data_type;
-
-
 
 
 

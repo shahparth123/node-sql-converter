@@ -285,7 +285,7 @@ describe('transactsql', () => {
     const sql = 'INSERT INTO [dbo].[mytable]([value]) values( 0x11 );'
     expect(getParsedSql(sql)).to.be.equal('INSERT INTO [dbo].[mytable] (value) VALUES (0x11)')
   })
-  it('should support for xml', () => {
+  it('should support for xml / json', () => {
     const base = `SELECT Cust.CustomerID,
         OrderHeader.CustomerID,
         OrderHeader.SalesOrderID,
@@ -302,6 +302,11 @@ describe('transactsql', () => {
     expect(getParsedSql(sql)).to.be.equal(`${sqlfiyBase} FOR XML PATH([rowName])`)
     sql = [base, 'for xml path(\'\')'].join('\n')
     expect(getParsedSql(sql)).to.be.equal(`${sqlfiyBase} FOR XML PATH('')`)
+    sql = 'SELECT column_name FROM table_name FOR XML PATH';
+    expect(getParsedSql(sql)).to.be.equal(`SELECT [column_name] FROM [table_name] FOR XML PATH`)
+    sql = 'SELECT column_name FROM table_name FOR JSON PATH';
+    expect(getParsedSql(sql)).to.be.equal(`SELECT [column_name] FROM [table_name] FOR JSON PATH`)
+    
   })
   it('should support cross and outer apply', () => {
     const applies = ['cross', 'outer']
@@ -339,6 +344,20 @@ describe('transactsql', () => {
     sql = 'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED'
     expect(getParsedSql(sql)).to.be.equal('SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED')
   })
+  it('should support update from statements', () => {
+    let sql = "UPDATE CustomerDataImports SET CustomerStateImport='FL'"
+    expect(getParsedSql(sql)).to.be.equal("UPDATE [CustomerDataImports] SET [CustomerStateImport] = 'FL'")
+    sql = "UPDATE CustomerDataImports SET CustomerStateImport='FL' FROM CustomerDataImports AS t0"
+    expect(getParsedSql(sql)).to.be.equal("UPDATE [CustomerDataImports] SET [CustomerStateImport] = 'FL' FROM [CustomerDataImports] AS [t0]")
+    sql = "UPDATE CustomerDataImports SET [CustomerStateImport]='FL' FROM CustomerDataImports AS t0"
+    expect(getParsedSql(sql)).to.be.equal("UPDATE [CustomerDataImports] SET [CustomerStateImport] = 'FL' FROM [CustomerDataImports] AS [t0]")
+    sql = "UPDATE CustomerDataImports SET [CustomerStateImport] = 'FL' FROM CustomerDataImports AS t0 WHERE t0.SICCodeImport = 654"
+    expect(getParsedSql(sql)).to.be.equal("UPDATE [CustomerDataImports] SET [CustomerStateImport] = 'FL' FROM [CustomerDataImports] AS [t0] WHERE [t0].[SICCodeImport] = 654")
+    sql = "UPDATE CustomerDataImports SET [CustomerStateImport] = 'FL' WHERE t0.SICCodeImport = 654"
+    expect(getParsedSql(sql)).to.be.equal("UPDATE [CustomerDataImports] SET [CustomerStateImport] = 'FL' WHERE [t0].[SICCodeImport] = 654")
+    sql = "UPDATE CustomerDataImports SET CustomerStateImport='FL' FROM CustomerDataImports AS t0 INNER JOIN LookupEntity AS t1 ON t0.CustomerStateImport = t1.LookupValue1 WHERE t0.SheetName = 'Somethings'"
+    expect(getParsedSql(sql)).to.be.equal("UPDATE [CustomerDataImports] SET [CustomerStateImport] = 'FL' FROM [CustomerDataImports] AS [t0] INNER JOIN [LookupEntity] AS [t1] ON [t0].[CustomerStateImport] = [t1].[LookupValue1] WHERE [t0].[SheetName] = 'Somethings'")
+  })
   describe('if else', () => {
     it('should support if only statement', () => {
       const sql = `IF EXISTS(SELECT 1 from sys.views where name='MyView' and type='v')
@@ -360,4 +379,118 @@ describe('transactsql', () => {
       expect(getParsedSql(sql)).to.be.equal("SELECT * FROM (VALUES (0,0), (1,NULL), (NULL,2), (3,4)) AS [t(a, b)]")
     })
   })
+  const SQL_LIST = [
+    {
+      title: 'select from temp table',
+      sql: [
+        'SELECT * FROM #TempLocationCol',
+        'SELECT * FROM [#TempLocationCol]'
+      ]
+    },
+    {
+      title: 'select into clause',
+      sql: [
+        'SELECT * INTO #temp_table FROM tableName',
+        'SELECT * INTO [#temp_table] FROM [tableName]'
+      ]
+    },
+    {
+      title: 'convert function',
+      sql: [
+        'SELECT	a.username FROM	users a WHERE	a.end_time = CONVERT(VARCHAR,getdate(),23)',
+        'SELECT [a].[username] FROM [users] AS [a] WHERE [a].[end_time] = CONVERT([VARCHAR], getdate(), 23)',
+      ]
+    },
+    {
+      title: 'column as chinese name',
+      sql: [
+        'SELECT	a.username 姓名 FROM	users a',
+        'SELECT [a].[username] AS [姓名] FROM [users] AS [a]'
+      ]
+    },
+    {
+      title: 'double quoted table mentions',
+      sql: [
+        'SELECT	a.username FROM	"users" a',
+        'SELECT [a].[username] FROM [users] AS [a]'
+      ]
+    },
+    {
+      title: 'string_agg function',
+      sql: [
+        "SELECT STRING_AGG(DISTINCT column_name, ',') AS aggregated_values FROM table_name;",
+        "SELECT STRING_AGG(DISTINCT [column_name], ',') AS [aggregated_values] FROM [table_name]"
+      ]
+    },
+    {
+      title: 'fetch and offset',
+      sql: [
+        'SELECT * FROM transactions ORDER BY created_at OFFSET 20 ROWS FETCH NEXT 10 ROWS ONLY',
+        'SELECT * FROM [transactions] ORDER BY [created_at] ASC OFFSET 20 ROWS FETCH NEXT 10 ROWS ONLY'
+      ]
+    },
+    {
+      title: 'subquery with alias in identifiers',
+      sql: [
+        'SELECT * FROM (SELECT * FROM [dummy_table]) AS [dummy_table_alias]',
+        'SELECT * FROM (SELECT * FROM [dummy_table]) AS [dummy_table_alias]'
+      ]
+    },
+    {
+      title: 'varchar max',
+      sql: [
+        'CREATE TABLE [visits] ([url] varchar(max));',
+        'CREATE TABLE [visits] ([url] VARCHAR(max))'
+      ]
+    },
+    {
+      title: 'varbinary max',
+      sql: [
+        'CREATE TABLE [visits] ([url] varbinary(max));',
+        'CREATE TABLE [visits] ([url] VARBINARY(max))'
+      ]
+    },
+    {
+      title: 'table-valued function in from clause',
+      sql: [
+        "select * from dbo.fn_name(N'000')",
+        "SELECT * FROM dbo.fn_name(N'000')"
+      ]
+    },
+    {
+      title: 'alter table add contraint default expr',
+      sql: [
+        'ALTER TABLE [dbo].[Employee] ADD CONSTRAINT [Employee_IsActive]  DEFAULT ((1)) FOR [IsActive]',
+        'ALTER TABLE [dbo].[Employee] ADD CONSTRAINT [Employee_IsActive] DEFAULT ((1)) FOR [IsActive]'
+      ]
+    },
+    {
+      title: 'alter table add contraint default expr with values',
+      sql: [
+        'ALTER TABLE [dbo].[Employee] ADD CONSTRAINT [Employee_IsActive]  DEFAULT ((1)) FOR [IsActive] WITH VALUES',
+        'ALTER TABLE [dbo].[Employee] ADD CONSTRAINT [Employee_IsActive] DEFAULT ((1)) FOR [IsActive] WITH VALUES'
+      ]
+    },
+    {
+      title: 'function within group',
+      sql: [
+        'SELECT mh.*, PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY daily_reach) OVER (PARTITION BY mh.ig_user_id) AS median_per_user FROM tableName',
+        'SELECT [mh].*, PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY [daily_reach] ASC) OVER (PARTITION BY [mh].[ig_user_id]) AS [median_per_user] FROM [tableName]'
+      ]
+    },
+    {
+      title: 'ntext type',
+      sql: [
+        'CREATE TABLE [dbo].[Ordine]([NoteInvioEmail][ntext])',
+        'CREATE TABLE [dbo].[Ordine] ([NoteInvioEmail] NTEXT)'
+      ]
+    },
+  ]
+  SQL_LIST.forEach(sqlInfo => {
+    const { title, sql } = sqlInfo
+    it(`should support ${title}`, () => {
+      expect(getParsedSql(sql[0], tsqlOpt)).to.equal(sql[1])
+    })
+  })
 })
+

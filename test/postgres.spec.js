@@ -58,7 +58,7 @@ describe('Postgres', () => {
         `SELECT FirstName
         FROM Roster INNER JOIN PlayerStats
         USING (LastName);`,
-        'SELECT FirstName FROM "Roster" INNER JOIN "PlayerStats" USING ("LastName")'
+        'SELECT FirstName FROM "Roster" INNER JOIN "PlayerStats" USING (LastName)'
       ]
     },
     {
@@ -163,6 +163,19 @@ describe('Postgres', () => {
         ]
     },
     {
+      title: 'Windows Fns + Rows between following',
+      sql: [
+        `SELECT
+          SUM(column3) OVER (
+          PARTITION BY column1
+          ORDER BY column2 ASC
+          ROWS BETWEEN 1 FOLLOWING AND 2 FOLLOWING
+          )
+        FROM table1;`,
+        'SELECT SUM(column3) OVER (PARTITION BY column1 ORDER BY column2 ASC ROWS BETWEEN 1 FOLLOWING AND 2 FOLLOWING) FROM "table1"'
+      ]
+    },
+    {
         title: 'Window Fns + ROWS unbounded preceding + current row',
         sql: [
           `SELECT
@@ -249,12 +262,12 @@ describe('Postgres', () => {
         title: 'Window Fns + FIRST_VALUE',
         sql: [
           `SELECT
-            FIRST_VALUE(user_name ignore NULLS) OVER (
+            FIRST_VALUE(user_name) ignore NULLS OVER (
                 PARTITION BY user_city
                 ORDER BY created_at, ranking
             ) AS age_window
           FROM roster`,
-          'SELECT FIRST_VALUE(user_name IGNORE NULLS) OVER (PARTITION BY user_city ORDER BY created_at ASC, ranking ASC) AS "age_window" FROM "roster"'
+          'SELECT FIRST_VALUE(user_name) IGNORE NULLS OVER (PARTITION BY user_city ORDER BY created_at ASC, ranking ASC) AS "age_window" FROM "roster"'
         ]
     },
     {
@@ -521,8 +534,8 @@ describe('Postgres', () => {
     {
       title: 'distinct on',
       sql: [
-        'SELECT DISTINCT ON (a, b) a, b, c FROM tbl',
-        'SELECT DISTINCT ON (a, b) a, b, c FROM "tbl"'
+        "SELECT DISTINCT ON (a->>'someJsonAttribute', b, c) a->>'someJsonAttribute', b, c FROM tbl",
+        `SELECT DISTINCT ON (a ->> 'someJsonAttribute', b, c) a ->> 'someJsonAttribute', b, c FROM "tbl"`
       ]
     },
     {
@@ -797,6 +810,20 @@ describe('Postgres', () => {
       ]
     },
     {
+      title: 'delete statement with returning',
+      sql: [
+        'DELETE FROM users WHERE id = 2 RETURNING id, email as email_address;',
+        'DELETE FROM "users" WHERE id = 2 RETURNING id, email AS "email_address"',
+      ]
+    },
+    {
+      title: 'delete statement with returning *',
+      sql: [
+        'DELETE FROM users WHERE id = 2 RETURNING *;',
+        'DELETE FROM "users" WHERE id = 2 RETURNING *',
+      ]
+    },
+    {
       title: 'column quoted data type',
       sql: [
         `select 'a'::"char" as b;`,
@@ -865,8 +892,8 @@ describe('Postgres', () => {
     {
       title: 'alter table add constraint',
       sql: [
-        'ALTER TABLE address ADD CONSTRAINT user_id_address_fk FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE ON UPDATE RESTRICT;',
-        'ALTER TABLE "address" ADD CONSTRAINT "user_id_address_fk" FOREIGN KEY (user_id) REFERENCES "user" (id) ON DELETE CASCADE ON UPDATE RESTRICT'
+        'ALTER TABLE if exists only address ADD CONSTRAINT user_id_address_fk FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE ON UPDATE RESTRICT;',
+        'ALTER TABLE IF EXISTS ONLY "address" ADD CONSTRAINT "user_id_address_fk" FOREIGN KEY (user_id) REFERENCES "user" (id) ON DELETE CASCADE ON UPDATE RESTRICT'
       ]
     },
     {
@@ -921,14 +948,14 @@ describe('Postgres', () => {
       title: 'cast to jsonb and select key',
       sql: [
         "SELECT TextColumn::JSONB->>'name' FROM table1",
-        `SELECT TextColumn::JSONB->> 'name' FROM "table1"`
+        `SELECT TextColumn::JSONB ->> 'name' FROM "table1"`
       ]
     },
     {
       title: 'cast to jsonb and select key in function',
       sql: [
         "SELECT CAST(properties AS JSONB)->>'name' FROM table1",
-        `SELECT CAST(properties AS JSONB)->> 'name' FROM "table1"`
+        `SELECT CAST(properties AS JSONB) ->> 'name' FROM "table1"`
       ]
     },
     {
@@ -1048,7 +1075,7 @@ describe('Postgres', () => {
       title: 'create domain with full definition',
       sql: [
         'CREATE DOMAIN public.year AS integer collate utf8mb4_bin default 0 CONSTRAINT year_check CHECK (((VALUE >= 1901) AND (VALUE <= 2155)));',
-        'CREATE DOMAIN "public"."year" AS INTEGER COLLATE UTF8MB4_BIN DEFAULT 0 CONSTRAINT "year_check" CHECK (((VALUE >= 1901) AND (VALUE <= 2155)))',
+        'CREATE DOMAIN "public"."year" AS INTEGER COLLATE utf8mb4_bin DEFAULT 0 CONSTRAINT "year_check" CHECK (((VALUE >= 1901) AND (VALUE <= 2155)))',
       ]
     },
     {
@@ -1131,7 +1158,7 @@ describe('Postgres', () => {
             ELSE $1 || ', ' || $2
           END
         $_$;`,
-        `CREATE FUNCTION "public"._group_concat(TEXT, TEXT) RETURNS TEXT LANGUAGE sql IMMUTABLE AS $_$ SELECT CASE WHEN $2 IS NULL THEN $1 WHEN $1 IS NULL THEN $2 ELSE $1 || ', ' || $2 END $_$`
+        `CREATE FUNCTION public._group_concat(TEXT, TEXT) RETURNS TEXT LANGUAGE sql IMMUTABLE AS $_$ SELECT CASE WHEN $2 IS NULL THEN $1 WHEN $1 IS NULL THEN $2 ELSE $1 || ', ' || $2 END $_$`
       ]
     },
     {
@@ -1146,7 +1173,7 @@ describe('Postgres', () => {
           AND store_id = $2
           AND NOT inventory_in_stock(inventory_id);
         $_$;`,
-        `CREATE FUNCTION "public".film_not_in_stock(p_film_id INTEGER DEFAULT 1, p_store_id INTEGER = 1, OUT p_film_count INTEGER) RETURNS SETOF INTEGER LANGUAGE sql AS $_$ SELECT inventory_id FROM "inventory" WHERE film_id = $1 AND store_id = $2 AND NOT inventory_in_stock(inventory_id) $_$`
+        `CREATE FUNCTION public.film_not_in_stock(p_film_id INTEGER DEFAULT 1, p_store_id INTEGER = 1, OUT p_film_count INTEGER) RETURNS SETOF INTEGER LANGUAGE sql AS $_$ SELECT inventory_id FROM "inventory" WHERE film_id = $1 AND store_id = $2 AND NOT inventory_in_stock(inventory_id) $_$`
       ]
     },
     {
@@ -1182,7 +1209,7 @@ describe('Postgres', () => {
     {
       title: 'create function with if else stmt',
       sql: [
-        `CREATE FUNCTION public.inventory_in_stock(p_inventory_id integer) RETURNS boolean
+        `CREATE FUNCTION "public".inventory_in_stock(p_inventory_id integer) RETURNS boolean
         LANGUAGE plpgsql
         AS $$
           DECLARE
@@ -1214,13 +1241,13 @@ describe('Postgres', () => {
               END IF;
           END
         $$;`,
-        'CREATE FUNCTION "public".inventory_in_stock(p_inventory_id INTEGER) RETURNS BOOLEAN LANGUAGE plpgsql AS $$ DECLARE v_rentals INTEGER; v_out INTEGER BEGIN SELECT COUNT(*) INTO "v_rentals" FROM "rental" WHERE inventory_id = p_inventory_id ; IF v_rentals = 0 THEN RETURN TRUE; END IF ; SELECT COUNT(rental_id) INTO "v_out" FROM "inventory" LEFT JOIN "rental" USING ("inventory_id") WHERE "inventory".inventory_id = p_inventory_id AND "rental".return_date IS NULL ; IF v_out > 0 THEN RETURN FALSE; ELSEIF v_out = 0 THEN RETURN FALSE ; ELSE RETURN TRUE; END IF END $$'
+        'CREATE FUNCTION "public".inventory_in_stock(p_inventory_id INTEGER) RETURNS BOOLEAN LANGUAGE plpgsql AS $$ DECLARE v_rentals INTEGER; v_out INTEGER BEGIN SELECT COUNT(*) INTO "v_rentals" FROM "rental" WHERE inventory_id = p_inventory_id ; IF v_rentals = 0 THEN RETURN TRUE; END IF ; SELECT COUNT(rental_id) INTO "v_out" FROM "inventory" LEFT JOIN "rental" USING (inventory_id) WHERE "inventory".inventory_id = p_inventory_id AND "rental".return_date IS NULL ; IF v_out > 0 THEN RETURN FALSE; ELSEIF v_out = 0 THEN RETURN FALSE ; ELSE RETURN TRUE; END IF END $$'
       ]
     },
     {
       title: 'create function without args',
       sql: [
-        `CREATE FUNCTION public.last_updated() RETURNS trigger
+        `CREATE FUNCTION "public".last_updated() RETURNS trigger
         LANGUAGE plpgsql
         AS $$
           BEGIN
@@ -1228,6 +1255,17 @@ describe('Postgres', () => {
               RETURN NEW;
           END $$;`,
         'CREATE FUNCTION "public".last_updated() RETURNS "trigger" LANGUAGE plpgsql AS $$ BEGIN NEW.last_update = CURRENT_TIMESTAMP ; RETURN NEW END $$'
+      ]
+    },
+    {
+      title: 'create function with sql body',
+      sql: [
+        `CREATE FUNCTION add(a integer, b integer) RETURNS integer
+          LANGUAGE SQL
+          IMMUTABLE
+          RETURNS NULL ON NULL INPUT
+          RETURN a + b;`,
+        'CREATE FUNCTION add(a INTEGER, b INTEGER) RETURNS INTEGER LANGUAGE SQL IMMUTABLE RETURNS NULL ON NULL INPUT RETURN a + b'
       ]
     },
     {
@@ -1487,10 +1525,372 @@ describe('Postgres', () => {
     FROM
         film f
     INNER JOIN film_actor fa USING (film_id)
-    INNER JOIN actor a USING (actor_id)
+    INNER JOIN actor a USING ("actor_id")
     GROUP BY
         f.title;`,
-        `SELECT "f".title, STRING_AGG("a".first_name || ' ' || "a".last_name, ',' ORDER BY "a".first_name ASC, "a".last_name ASC) AS "actors" FROM "film" AS "f" INNER JOIN "film_actor" AS "fa" USING ("film_id") INNER JOIN "actor" AS "a" USING ("actor_id") GROUP BY "f".title`
+        `SELECT "f".title, STRING_AGG("a".first_name || ' ' || "a".last_name, ',' ORDER BY "a".first_name ASC, "a".last_name ASC) AS "actors" FROM "film" AS "f" INNER JOIN "film_actor" AS "fa" USING (film_id) INNER JOIN "actor" AS "a" USING ("actor_id") GROUP BY "f".title`
+      ]
+    },
+    {
+      title: 'drop if exists',
+      sql: [
+        'DROP TABLE IF EXISTS table_name;',
+        'DROP TABLE IF EXISTS "table_name"'
+      ]
+    },
+    {
+      title: 'ilike binary operator',
+      sql: [
+        "SELECT a FROM b WHERE a::TEXT ILIKE '%x%'",
+        `SELECT a FROM "b" WHERE a::TEXT ILIKE '%x%'`
+      ]
+    },
+    {
+      title: 'check constraint',
+      sql: [
+        'CREATE TABLE Books (price DECIMAL(10, 2) CHECK (Price > 0));',
+        'CREATE TABLE "Books" (price DECIMAL(10, 2) CHECK (Price > 0))'
+      ]
+    },
+    {
+      title: 'array data type',
+      sql: [
+        `CREATE TABLE "table_0" ("hi" INTEGER ARRAY); CREATE TABLE "table_1" ("hi" INTEGER[3]);`,
+        `CREATE TABLE "table_0" ("hi" INTEGER ARRAY) ; CREATE TABLE "table_1" ("hi" INTEGER[3])`
+      ]
+    },
+    {
+      title: 'binary expr as fun args',
+      sql: [
+        `SELECT
+	somefunc(
+        engineering_networks.realizaciya,
+        engineering_networks.company = 'blah-blah'
+        AND
+        engineering_networks.obem_realizacii_tip = 'uslugi'
+      ) AS var0,
+      If(var0 > 0, '2', '1') AS fontColor
+     FROM engineering_networks AS engineering_networks
+     WHERE
+     	engineering_networks.company = 'blah-blah' AND
+        engineering_networks.month IN ('April') AND
+        engineering_networks.year IN ('2024')
+     LIMIT 1;`,
+     `SELECT somefunc("engineering_networks".realizaciya, "engineering_networks".company = 'blah-blah' AND "engineering_networks".obem_realizacii_tip = 'uslugi') AS "var0", If(var0 > 0, '2', '1') AS "fontColor" FROM "engineering_networks" AS "engineering_networks" WHERE "engineering_networks".company = 'blah-blah' AND "engineering_networks".month IN ('April') AND "engineering_networks".year IN ('2024') LIMIT 1`
+      ],
+    },
+    {
+      title: 'alter column data type',
+      sql: [
+        `ALTER TABLE employees ALTER COLUMN first_name SET DATA TYPE TEXT COLLATE "C" using upper(first_name);`,
+        'ALTER TABLE "employees" ALTER COLUMN first_name SET DATA TYPE TEXT COLLATE "C" USING upper(first_name)'
+      ]
+    },
+    {
+      title: 'alter column set and drop default',
+      sql: [
+        "ALTER TABLE transactions ADD COLUMN status varchar(30) DEFAULT 'old', ALTER COLUMN status SET default 'current', ALTER COLUMN name drop default;",
+        `ALTER TABLE "transactions" ADD COLUMN status VARCHAR(30) DEFAULT 'old', ALTER COLUMN status SET DEFAULT 'current', ALTER COLUMN name DROP DEFAULT`,
+      ]
+    },
+    {
+      title: 'alter column set not null',
+      sql: [
+        'ALTER TABLE transactions ALTER COLUMN status SET NOT NULL',
+        'ALTER TABLE "transactions" ALTER COLUMN status SET NOT NULL',
+      ]
+    },
+    {
+      title: 'jsonb operator',
+      sql: [
+        "SELECT id,  collection::jsonb ?| array['val1', 'val2'] FROM instances",
+        `SELECT id, collection::JSONB ?| ARRAY['val1','val2'] FROM "instances"`
+      ]
+    },
+    {
+      title: 'create type',
+      sql: [
+        `CREATE TYPE address AS (
+            street VARCHAR(255),
+            city VARCHAR(100),
+            state VARCHAR(100),
+            zip_code VARCHAR(10)
+        );`,
+        'CREATE TYPE "address" AS (street VARCHAR(255), city VARCHAR(100), state VARCHAR(100), zip_code VARCHAR(10))'
+      ]
+    },
+    {
+      title: 'create type as range',
+      sql: [
+        'CREATE TYPE float8_range AS RANGE (subtype = float8, subtype_diff = float8mi);',
+        'CREATE TYPE "float8_range" AS RANGE (subtype = float8, subtype_diff = float8mi)'
+      ]
+    },
+    {
+      title: 'create table with column_constraint',
+      sql: [
+        `CREATE TABLE public.tnotok ("id" SERIAL CONSTRAINT users_PK PRIMARY KEY, description text DEFAULT ''::text NOT NULL);`,
+        `CREATE TABLE "public"."tnotok" ("id" SERIAL CONSTRAINT users_PK PRIMARY KEY, description TEXT NOT NULL DEFAULT ''::TEXT)`,
+      ]
+    },
+    {
+      title: 'create table with quoted data type',
+      sql: [
+        'CREATE TABLE "User" ("gender" "Gender" NOT NULL);',
+        'CREATE TABLE "User" ("gender" "Gender" NOT NULL)',
+      ]
+    },
+    {
+      title: 'no space before line comment',
+      sql: [
+        'select * from model_a a-- comment',
+        'SELECT * FROM "model_a" AS "a"'
+      ]
+    },
+    {
+      title: 'mixed jsonb and cast',
+      sql: [
+        "SELECT person.name FROM person WHERE person.email_addresses::json -> 'items'::text ILIKE '%sam%'",
+        `SELECT "person".name FROM "person" WHERE "person".email_addresses::JSON -> 'items'::TEXT ILIKE '%sam%'`
+      ]
+    },
+    {
+      title: 'multiple jsonb operator expr',
+      sql: [
+        `select '{"a": {"b":{"c": "foo"}}}'::json#>'{a,b}', '{"a":1, "b":2}'::jsonb @> '{"b":2}'::jsonb, '{"a":1, "b":2}'::jsonb ? 'b', '{"a":1, "b":2, "c":3}'::jsonb ?| array['b', 'c']
+, '["a", "b"]'::jsonb ?& array['a', 'b'], '["a", "b"]'::jsonb || '["c", "d"]'::jsonb, '{"a": "b"}'::jsonb - 'a', '["a", "b"]'::jsonb - 1, '["a", {"b":1}]'::jsonb #- '{1,b}'`,
+        `SELECT '{"a": {"b":{"c": "foo"}}}'::JSON #> '{a,b}', '{"a":1, "b":2}'::JSONB @> '{"b":2}'::JSONB, '{"a":1, "b":2}'::JSONB ? 'b', '{"a":1, "b":2, "c":3}'::JSONB ?| ARRAY['b','c'], '["a", "b"]'::JSONB ?& ARRAY['a','b'], '["a", "b"]'::JSONB || '["c", "d"]'::JSONB, '{"a": "b"}'::JSONB - 'a', '["a", "b"]'::JSONB - 1, '["a", {"b":1}]'::JSONB #- '{1,b}'`
+      ]
+    },
+    {
+      title: 'timestamptz data type',
+      sql: [
+        'CREATE TABLE "Users" (created_at timestamptz);',
+        'CREATE TABLE "Users" (created_at TIMESTAMPTZ)'
+      ]
+    },
+    {
+      title: 'start transaction',
+      sql: [
+        'start transaction isolation level repeatable read, read only, not deferrable',
+        'START TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY, NOT DEFERRABLE'
+      ]
+    },
+    {
+      title: 'create table as',
+      sql: [
+        'create table test as select 1',
+        'CREATE TABLE "test" AS SELECT 1'
+      ]
+    },
+    {
+      title: 'substring function',
+      sql: [
+        `SELECT AVG(
+            CASE
+                WHEN "duration" LIKE '%min%' THEN CAST(SUBSTRING("duration" FROM '([0-9]+)') AS INTEGER)
+                WHEN "duration" LIKE '%hr%' THEN CAST(SUBSTRING("duration" FROM '([0-9]+)') AS INTEGER) * 60
+                ELSE NULL
+            END
+        ) AS average_duration
+        FROM "netflix_shows"
+        WHERE "listed_in" ILIKE '%Thriller%'
+        LIMIT 100;`,
+        `SELECT AVG(CASE WHEN "duration" LIKE '%min%' THEN CAST(SUBSTRING("duration" FROM '([0-9]+)') AS INTEGER) WHEN "duration" LIKE '%hr%' THEN CAST(SUBSTRING("duration" FROM '([0-9]+)') AS INTEGER) * 60 ELSE NULL END) AS "average_duration" FROM "netflix_shows" WHERE "listed_in" ILIKE '%Thriller%' LIMIT 100`
+      ]
+    },
+    {
+      title: 'column at time zone',
+      sql: [
+        "SELECT start_time AT TIME ZONE 'UTC' AS start_time FROM my_table",
+        `SELECT start_time AT TIME ZONE 'UTC' AS "start_time" FROM "my_table"`
+      ]
+    },
+    {
+      title: 'column cast with at time zone',
+      sql: [
+        "SELECT start_time::timestamp AT TIME ZONE 'UTC' AS start_time FROM my_table",
+        `SELECT start_time::TIMESTAMP AT TIME ZONE 'UTC' AS "start_time" FROM "my_table"`
+      ]
+    },
+    {
+      title: 'complex at time zone',
+      sql: [
+        'select date(cast(t.start_time at time zone loc.timezone as timestamptz)) as start_time from my_table t',
+        'SELECT date(CAST("t".start_time AT TIME ZONE "loc".timezone AS TIMESTAMPTZ)) AS "start_time" FROM "my_table" AS "t"',
+      ]
+    },
+    {
+      title: 'create index with if not exists',
+      sql: [
+        'CREATE UNIQUE INDEX IF NOT EXISTS public_i_locations_pkey ON public.i_locations (id);',
+        'CREATE UNIQUE INDEX IF NOT EXISTS "public_i_locations_pkey" ON "public"."i_locations" (id)'
+      ]
+    },
+    {
+      title: 'create index with include clause',
+      sql: [
+        'CREATE INDEX ON tableName (supplier, amount) INCLUDE(id);',
+        'CREATE INDEX ON "tableName" (supplier, amount) INCLUDE (id)'
+      ]
+    },
+    {
+      title: 'limit by select stmt',
+      sql: [
+        'SELECT * FROM user LIMIT (SELECT COUNT(*) / 2 FROM user);',
+        'SELECT * FROM "user" LIMIT (SELECT COUNT(*) / 2 FROM "user")'
+      ]
+    },
+    {
+      title: 'current_timestamp with at time zone',
+      sql: [
+        "select CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AS right_now, my_field FROM my_table;",
+        `SELECT CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AS "right_now", my_field FROM "my_table"`
+      ]
+    },
+    {
+      title: 'cast now at time zone',
+      sql: [
+        "select CAST(now() AT TIME ZONE 'UTC' AS TIMESTAMPTZ) AS right_now, my_field FROM my_table;",
+        `SELECT CAST(now() AT TIME ZONE 'UTC' AS TIMESTAMPTZ) AS "right_now", my_field FROM "my_table"`
+      ]
+    },
+    {
+      title: 'drop view',
+      sql: [
+        'DROP VIEW view_name;',
+        'DROP VIEW "view_name"'
+      ]
+    },
+    {
+      title: 'make interval func',
+      sql: [
+        `SELECT
+            gid,
+            '2020-01-01 00:00:00'::TIMESTAMP WITH TIME ZONE + make_interval(secs => (
+                (gid - (SELECT min(gid) FROM nyct20))::FLOAT / (SELECT max(gid) - min(gid) FROM nyct20)) * 31536000 -- One year in seconds
+            ) AS generated_timestamp
+        FROM
+            nyct20;`,
+        `SELECT gid, '2020-01-01 00:00:00'::TIMESTAMP WITH TIME ZONE + MAKE_INTERVAL(secs => ((gid - (SELECT MIN(gid) FROM "nyct20"))::FLOAT / (SELECT MAX(gid) - MIN(gid) FROM "nyct20")) * 31536000) AS "generated_timestamp" FROM "nyct20"`
+      ]
+    },
+    {
+      title: 'geometry type',
+      sql: [
+        'ALTER table my_table ADD COLUMN geom geometry(Point, 4326);',
+        'ALTER TABLE "my_table" ADD COLUMN geom GEOMETRY(Point, 4326)'
+      ]
+    },
+    {
+      title: 'create table with function default expr',
+      sql: [
+        `CREATE TABLE public.person (
+            external_id character varying(255) DEFAULT "substring"(md5((random())::text), 1, 6)
+        );`,
+        'CREATE TABLE "public"."person" (external_id CHARACTER VARYING(255) DEFAULT "substring"(md5((random())::TEXT), 1, 6))'
+      ]
+    },
+    {
+      title: 'alter table owner to',
+      sql: [
+        'ALTER TABLE public.person OWNER TO postgres;',
+        'ALTER TABLE "public"."person" OWNER TO "postgres"'
+      ]
+    },
+    {
+      title: 'alter sequence restart',
+      sql: [
+        'ALTER SEQUENCE serial RESTART WITH 105;',
+        'ALTER SEQUENCE "serial" RESTART WITH 105'
+      ]
+    },
+    {
+      title: 'alter sequence owner to',
+      sql: [
+        'ALTER SEQUENCE serial OWNER TO postgres;',
+        'ALTER SEQUENCE "serial" OWNER TO postgres'
+      ]
+    },
+    {
+      title: 'alter sequence rename to',
+      sql: [
+        'ALTER SEQUENCE serial RENAME TO postgres;',
+        'ALTER SEQUENCE "serial" RENAME TO postgres'
+      ]
+    },
+    {
+      title: 'alter sequence set logged',
+      sql: [
+        'ALTER SEQUENCE serial set logged;',
+        'ALTER SEQUENCE "serial" SET LOGGED'
+      ]
+    },
+    {
+      title: 'alter sequence set schema',
+      sql: [
+        'ALTER SEQUENCE serial set schema postgres;',
+        'ALTER SEQUENCE "serial" SET SCHEMA postgres'
+      ]
+    },
+    {
+      title: 'case when then array index',
+      sql: [
+        "SELECT CASE WHEN POSITION(' - ' in col) > 0 THEN SPLIT(col, ' - ')[0] ELSE col END FROM DUAL",
+        "SELECT CASE WHEN POSITION(' - ' IN col) > 0 THEN SPLIT(col, ' - ')[0] ELSE col END FROM DUAL"
+      ]
+    },
+    {
+      title: 'case when then else',
+      sql: [
+        "SELECT CASE WHEN a[0] = '1' THEN '1' ELSE '2' END FROM DUAL",
+        "SELECT CASE WHEN a[0] = '1' THEN '1' ELSE '2' END FROM DUAL"
+      ]
+    },
+    {
+      title: 'case when expr with array index',
+      sql: [
+        "SELECT CASE WHEN SPLIT('a - b', ' - ')[0] = 'a' THEN '1' ELSE '2' END FROM DUAL",
+        "SELECT CASE WHEN SPLIT('a - b', ' - ')[0] = 'a' THEN '1' ELSE '2' END FROM DUAL"
+      ]
+    },
+    {
+      title: 'decimal number keep zeros',
+      sql: [
+        'SELECT 100.0 * count(_timestamp) as "y_axis_1"  FROM "default"',
+        'SELECT 100.0 * COUNT(_timestamp) AS "y_axis_1" FROM "default"'
+      ]
+    },
+    {
+      title: 'comment on extension',
+      sql: [
+        "COMMENT ON EXTENSION pgcrypto IS 'HELLO WORLD'",
+        "COMMENT ON EXTENSION pgcrypto IS 'HELLO WORLD'"
+      ]
+    },
+    {
+      title: 'constant string with case sensitive',
+      sql: [
+        "SELECT * FROM users WHERE id = E'one'",
+        `SELECT * FROM "users" WHERE id = E'one'`
+      ]
+    },
+    {
+      title: 'set item support full expr',
+      sql: [
+        'update api.entities set is_active = not is_active WHERE id = $1',
+        'UPDATE "api"."entities" SET is_active = NOT is_active WHERE id = $1'
+      ]
+    },
+    {
+      title: 'array data type',
+      sql: [
+        `CREATE TABLE sal_emp (
+            name            text,
+            pay_by_quarter  integer[],
+            schedule        text[][]
+        );`,
+        'CREATE TABLE "sal_emp" (name TEXT, pay_by_quarter INTEGER[], schedule TEXT[][])'
       ]
     },
   ]
@@ -1502,11 +1902,26 @@ describe('Postgres', () => {
         })
     })
   }
+
   neatlyNestTestedSQL(SQL_LIST)
 
+  describe('set time zone', () => {
+    it('should support set time zone', () => {
+      let sql = "SET TIME ZONE INTERVAL '00:00' HOUR TO MINUTE;"
+      expect(getParsedSql(sql, opt)).to.equal(sql.slice(0, -1))
+      sql = "SET TIME ZONE 'America/Los_Angeles';"
+      expect(getParsedSql(sql, opt)).to.equal(sql.slice(0, -1))
+      sql = 'SET TIME ZONE -8;'
+      expect(getParsedSql(sql, opt)).to.equal(sql.slice(0, -1))
+      sql = 'SET TIME ZONE LOCAL;'
+      expect(getParsedSql(sql, opt)).to.equal(sql.slice(0, -1))
+      sql = 'SET TIME ZONE DEFAULT;'
+      expect(getParsedSql(sql, opt)).to.equal(sql.slice(0, -1))
+    })
+  })
   describe('tables to sql', () => {
     it('should parse object tables', () => {
-      const ast = parser.astify(SQL_LIST[100].sql[0], opt)
+      const ast = parser.astify(SQL_LIST[103].sql[0], opt)
       ast[0].from[0].expr.parentheses = false
       expect(parser.sqlify(ast, opt)).to.be.equal('SELECT last_name, salary FROM "employees" INNER JOIN "salaries" ON "employees".emp_no = "salaries".emp_no')
     })
@@ -1766,6 +2181,97 @@ describe('Postgres', () => {
           `SELECT * FROM jsonb_to_recordset('[{"amount":23, "currency": "INR"}]'::JSONB) AS l_amount(amount DECIMAL, currency TEXT)`
         ]
       },
+      {
+        title: 'create scheme',
+        sql: [
+          'CREATE SCHEMA public;',
+          'CREATE SCHEMA public'
+        ]
+      },
+      {
+        title: 'create constraint with quoted name',
+        sql: [
+          `CREATE TABLE "User" (
+              "id" SERIAL NOT NULL,
+              CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+          );`,
+          'CREATE TABLE "User" ("id" SERIAL NOT NULL, CONSTRAINT "User_pkey" PRIMARY KEY ("id"))'
+        ]
+      },
+      {
+        title: 'reserved keyword as column name',
+        sql: [
+          'select meeting.end from meeting',
+          'SELECT "meeting".end FROM "meeting"'
+        ]
+      },
+      {
+        title: 'comment on table',
+        sql: [
+          "COMMENT ON TABLE users IS 'users table';",
+          `COMMENT ON TABLE "users" IS 'users table'`
+        ]
+      },
+      {
+        title: 'comment on column',
+        sql: [
+          `COMMENT ON COLUMN "users"."name" IS 'first name and last name';`,
+          `COMMENT ON COLUMN "users"."name" IS 'first name and last name'`
+        ]
+      },
+      {
+        title: 'comment on database',
+        sql: [
+          `COMMENT ON DATABASE my_database IS 'Development Database';`,
+          `COMMENT ON DATABASE my_database IS 'Development Database'`,
+        ],
+      },
+      {
+        title: 'partition by func call',
+        sql: [
+          'SELECT Year, Title, ROW_NUMBER() OVER (PARTITION BY EXTRACT(YEAR FROM CreationDate)) AS rn FROM yearly_views;',
+          'SELECT Year, Title, ROW_NUMBER() OVER (PARTITION BY EXTRACT(YEAR FROM CreationDate)) AS "rn" FROM "yearly_views"'
+        ]
+      },
+      {
+        title: 'collate with schema',
+        sql: [
+          `CREATE TABLE features (
+            feature_name text COLLATE pg_catalog."default" NOT NULL
+          );`,
+          'CREATE TABLE "features" (feature_name TEXT NOT NULL COLLATE pg_catalog."default")'
+        ]
+      },
+      {
+        title: 'drop type stmt',
+        sql: [
+          'DROP TYPE IF EXISTS some_type, other_type CASCADE',
+          'DROP TYPE IF EXISTS some_type, other_type CASCADE'
+        ]
+      },
+      {
+        title: 'unlogged table',
+        sql: [
+          `CREATE UNLOGGED TABLE t1 (
+              id integer PRIMARY KEY,
+              data text
+          );`,
+          'CREATE UNLOGGED TABLE "t1" (id INTEGER PRIMARY KEY, data TEXT)'
+        ]
+      },
+      {
+        title: 'network address type',
+        sql: [
+          `CREATE TABLE "network_address" (
+              id integer PRIMARY KEY,
+              inet_address inet,
+              cidr_address cidr,
+              mac_address macaddr,
+              mac_address8 macaddr8
+          );`,
+          'CREATE TABLE "network_address" (id INTEGER PRIMARY KEY, inet_address INET, cidr_address CIDR, mac_address MACADDR, mac_address8 MACADDR8)'
+        ]
+      },
     ]
     neatlyNestTestedSQL(SQL_LIST)
   })
@@ -1821,6 +2327,9 @@ describe('Postgres', () => {
         }
       })
       expect(parser.sqlify(ast.ast, opt)).to.be.equals('SELECT "col1" + "col2" FROM "t1"')
+      sql = 'SELECT SUM("source"."point" + "other_source"."other_point") FROM foo';
+      ast = parser.parse(sql, opt)
+      expect(ast.columnList).to.be.eql(['select::source::point', 'select::other_source::other_point'])
     })
 
     it('should support conflict be empty', () => {
@@ -1829,10 +2338,103 @@ describe('Postgres', () => {
     it('should proc assign', () => {
       expect(procToSQL({stmt: {type: 'assign', left: {type: 'default', value: 'abc'}, keyword: '', right: {type: 'number', value: 123}, symbol: '='}})).to.be.equal('abc = 123')
     })
+    it('should has loc property', () => {
+      const sql = 'SELECT * FROM "company" WHERE NOT(company._id IS NULL)'
+      const opt = { database: 'postgresql', parseOptions: { includeLocations: true } }
+      const ast = parser.astify(sql, opt)
+      expect(ast.where.loc).to.be.eql({
+        "start": {
+          "offset": 30,
+          "line": 1,
+          "column": 31
+        },
+        "end": {
+          "offset": 54,
+          "line": 1,
+          "column": 55
+        }
+      })
+      expect(ast.where.args.value[0].loc).to.be.eql({
+        "start": {
+          "offset": 34,
+          "line": 1,
+          "column": 35
+        },
+        "end": {
+          "offset": 53,
+          "line": 1,
+          "column": 54
+        }
+      })
+    })
     it('should throw error', () => {
       const sql = "select 1 as 'one'"
       const fun = parser.astify.bind(parser, sql, opt)
       expect(fun).to.throw(`Expected "--", "/*", "\\"", [ \\t\\n\\r], or [A-Za-z_一-龥] but "'" found.`)
     })
+  })
+  describe('pg parse speed', function () {
+    this.timeout(30)
+    const sql = `SELECT
+      "pr"."destination_currency" AS "currency",
+      "pr"."idempotency_key" AS "unqiueRequestId",
+      "pr"."status" AS "paymentRequestStatus",
+      "pr"."payment_date" AS "paymentDate",
+      "pr"."provider_system_reference_number" AS "providerSystemReferenceNumber",
+      "pr"."destination_amount" AS "destinationAmount",
+      "pr"."error" AS "error",
+      "pr"."source_id" AS "sourceId",
+      "pr"."source_type" AS "sourceType",
+      "pr"."client_legal_entity_id" AS "clientLegalEntityId",
+      "pr"."beneficiary_legal_entity_id" AS "beneficiaryLegalEntityId",
+      "pr"."provider" AS "provider",
+      "txn"."created_at" AS "transactionCreatedAt",
+      "txn"."updated_at" AS "transactionUpdatedAt",
+      "txn"."provider_metadata" AS "providerMetadata",
+      "txn"."currency" AS "currency",
+      "txn"."amount" AS "amount",
+      "txn"."status" AS "status",
+      "txn"."type" AS "txnType",
+      "txn"."purpose_of_payment" AS "purposeOfPayment",
+      "txn"."client_reference" AS "clientReference",
+      "txn"."description" AS "transactionDescription",
+      pr.meta -> 'invoiceIds' AS "invoiceIds"
+  FROM
+      "public"."payment_request" "pr"
+      LEFT JOIN "public"."transaction" "txn" ON "txn"."payment_request_id" = "pr"."id"
+  WHERE
+      "pr"."source_id" IN ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50)
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+      OR pr.meta::jsonb -> 'invoiceIds' @> '["c937cd8c-65bc-4006-9413-dde7b43c61b6"]'
+  ORDER BY
+      "pr"."created_at" DESC`
+    const ast = parser.astify(sql, opt)
+    expect(ast).to.be.an('object')
   })
 })

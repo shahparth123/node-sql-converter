@@ -1,16 +1,17 @@
 import { exprToSQL, getExprListSQL, orderOrPartitionByToSQL, varToSQL } from './expr'
-import { columnRefToSQL, columnsToSQL } from './column'
+import { columnsToSQL } from './column'
 import { limitToSQL } from './limit'
 import { withToSQL } from './with'
 import { tablesToSQL } from './tables'
-import { hasVal, commonOptionConnector, connector, identifierToSql, topToSQL, toUpper } from './util'
+import { hasVal, commonOptionConnector, connector, identifierToSql, topToSQL, toUpper, literalToSQL } from './util'
+import { collateToSQL } from './collate'
 
 function distinctToSQL(distinct) {
   if (!distinct) return
   if (typeof distinct === 'string') return distinct
   const { type, columns } = distinct
   const result = [toUpper(type)]
-  if (columns) result.push(`(${columns.map(columnRefToSQL).join(', ')})`)
+  if (columns) result.push(`(${columns.map(exprToSQL).join(', ')})`)
   return result.filter(hasVal).join(' ')
 }
 
@@ -57,6 +58,7 @@ function selectToSQL(stmt) {
   const {
     as_struct_val: asStructVal,
     columns,
+    collate,
     distinct,
     for: forXml,
     from,
@@ -65,6 +67,7 @@ function selectToSQL(stmt) {
     groupby,
     having,
     into = {},
+    isolation,
     limit,
     options,
     orderby,
@@ -88,12 +91,17 @@ function selectToSQL(stmt) {
   const { keyword, expr } = forSystem || {}
   clauses.push(commonOptionConnector(keyword, exprToSQL, expr))
   clauses.push(commonOptionConnector('WHERE', exprToSQL, where))
-  clauses.push(connector('GROUP BY', getExprListSQL(groupby).join(', ')))
+  if (groupby) {
+    clauses.push(connector('GROUP BY', getExprListSQL(groupby.columns).join(', ')))
+    clauses.push(getExprListSQL(groupby.modifiers).join(', '))
+  }
   clauses.push(commonOptionConnector('HAVING', exprToSQL, having))
   clauses.push(commonOptionConnector('QUALIFY', exprToSQL, qualify))
   clauses.push(commonOptionConnector('WINDOW', exprToSQL, windowInfo))
   clauses.push(orderOrPartitionByToSQL(orderby, 'order by'))
+  clauses.push(collateToSQL(collate))
   clauses.push(limitToSQL(limit))
+  if (isolation) clauses.push(commonOptionConnector(isolation.keyword, literalToSQL, isolation.expr))
   clauses.push(toUpper(lockingRead))
   if (position === 'end') clauses.push(intoSQL)
   clauses.push(forXmlToSQL(forXml))

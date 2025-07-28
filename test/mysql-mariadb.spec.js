@@ -65,7 +65,7 @@ describe('mysql', () => {
         title: 'regexp_like with collate',
         sql: [
           "SELECT REGEXP_LIKE('CamelCase', 'CAMELCASE' COLLATE utf8mb4_0900_as_cs);",
-          "SELECT REGEXP_LIKE('CamelCase', 'CAMELCASE' COLLATE UTF8MB4_0900_AS_CS)"
+          "SELECT REGEXP_LIKE('CamelCase', 'CAMELCASE' COLLATE utf8mb4_0900_as_cs)"
         ]
       },
       {
@@ -364,12 +364,25 @@ describe('mysql', () => {
         ]
       },
       {
-        title: 'parentheses in from clause',
+        title: 'parentheses in from table clause',
         sql: [
           'SELECT * FROM (user), (`name`)',
           'SELECT * FROM (`user`), (`name`)'
         ]
       },
+      {
+        title: 'parentheses in from table join clause',
+        sql: [
+          `select *
+            from (\`t1\` \`eti\` join bagel on bagel.id = eti.id)
+            ;
+            select *
+            from ((\`t1\`))
+          `,
+          'SELECT * FROM (`t1` AS `eti` INNER JOIN `bagel` ON `bagel`.`id` = `eti`.`id`) ; SELECT * FROM ((`t1`))'
+        ]
+      },
+
       {
         title: 'blob data type',
         sql: [
@@ -551,7 +564,7 @@ describe('mysql', () => {
         title: 'index column length',
         sql: [
           'CREATE TABLE `Translation` (`id` char(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,`en-GB` text,PRIMARY KEY (`id`),KEY `Translation_en-GB_btree_idx` (`en-GB`(768))) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci',
-          'CREATE TABLE `Translation` (`id` CHAR(36) NOT NULL CHARACTER SET ASCII COLLATE ASCII_BIN, `en-GB` TEXT, PRIMARY KEY (`id`), KEY Translation_en-GB_btree_idx (`en-GB` (768))) ENGINE = INNODB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci',
+          'CREATE TABLE `Translation` (`id` CHAR(36) NOT NULL CHARACTER SET ascii COLLATE ascii_bin, `en-GB` TEXT, PRIMARY KEY (`id`), KEY Translation_en-GB_btree_idx (`en-GB` (768))) ENGINE = INNODB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci',
         ]
       },
       {
@@ -883,7 +896,7 @@ describe('mysql', () => {
           test
         WHERE
           name LIKE :pattern COLLATE utf8mb4_general_ci`,
-          'SELECT * FROM `test` WHERE `name` LIKE :pattern COLLATE UTF8MB4_GENERAL_CI'
+          'SELECT * FROM `test` WHERE `name` LIKE :pattern COLLATE utf8mb4_general_ci'
         ]
       },
       {
@@ -937,10 +950,11 @@ describe('mysql', () => {
       {
         title: 'check constraint',
         sql: [
-          'CREATE TABLE `table` (\n' +
-          '`name` VARCHAR(255) CHECK(`name` LIKE \'ABC%\' AND LENGTH(`name`) >= 5)\n' +
-          ');',
-          "CREATE TABLE `table` (`name` VARCHAR(255) CHECK (`name` LIKE 'ABC%' AND LENGTH(`name`) >= 5))"
+          `CREATE TABLE \`table\`(
+            \`name\` VARCHAR(255) CHECK(\`name\` LIKE 'ABC%' AND LENGTH(\`name\`) >= 5),
+            \`Int11\` int(11) DEFAULT NULL CHECK (\`Int11\` MOD 5 = 0)
+          );`,
+          "CREATE TABLE `table` (`name` VARCHAR(255) CHECK (`name` LIKE 'ABC%' AND LENGTH(`name`) >= 5), `Int11` INT(11) DEFAULT NULL CHECK (`Int11` MOD 5 = 0))"
         ]
       },
       {
@@ -954,7 +968,7 @@ describe('mysql', () => {
         title: 'collate in where clause include parentheses',
         sql: [
           "SELECT * FROM product WHERE (id = '1' OR id = '2') COLLATE utf8mb4_general_ci;",
-          "SELECT * FROM `product` WHERE (`id` = '1' OR `id` = '2') COLLATE UTF8MB4_GENERAL_CI"
+          "SELECT * FROM `product` WHERE (`id` = '1' OR `id` = '2') COLLATE utf8mb4_general_ci"
         ]
       },
       {
@@ -985,7 +999,7 @@ describe('mysql', () => {
           AND gu.STATUS = 0
         GROUP BY
           o.date`,
-          'SELECT DATE(`o`.`date`) AS `date`, COUNT(DISTINCT `o`.`user_id`,`operation_type` = 0 OR NULL) AS `operateOpenCount`, COUNT(DISTINCT `o`.`user_id`, (`operation_type` = 0 AND `jump_status` = 3) OR NULL) AS `realityOpenCount`, COUNT(DISTINCT `o`.`user_id`,`operation_type` = 1 OR NULL) AS `operateCloseCount`, COUNT(DISTINCT `o`.`user_id`, (`operation_type` = 1 AND `jump_status` = 3) OR NULL) AS `realityCloseCount` FROM (SELECT `id`, `user_id`, `operation_type`, `jump_status`, `operation_time`, `rider_type`, IF(EXTRACT(HOUR FROM `operation_time`) >= 16, DATE_ADD(DATE(`operation_time`), INTERVAL 1 DAY), DATE(`operation_time`)) AS `date` FROM `labour_insurance_operation`) AS `o` LEFT JOIN `labour_user` AS `u` ON `o`.`user_id` = `u`.`id` LEFT JOIN `labour_user_group_user` AS `gu` ON `o`.`user_id` = `gu`.`user_id` AND `gu`.`STATUS` = 0 GROUP BY `o`.`date`'
+          'SELECT DATE(`o`.`date`) AS `date`, COUNT(DISTINCT `o`.`user_id`, `operation_type` = 0 OR NULL) AS `operateOpenCount`, COUNT(DISTINCT `o`.`user_id`, (`operation_type` = 0 AND `jump_status` = 3) OR NULL) AS `realityOpenCount`, COUNT(DISTINCT `o`.`user_id`, `operation_type` = 1 OR NULL) AS `operateCloseCount`, COUNT(DISTINCT `o`.`user_id`, (`operation_type` = 1 AND `jump_status` = 3) OR NULL) AS `realityCloseCount` FROM (SELECT `id`, `user_id`, `operation_type`, `jump_status`, `operation_time`, `rider_type`, IF(EXTRACT(HOUR FROM `operation_time`) >= 16, DATE_ADD(DATE(`operation_time`), INTERVAL 1 DAY), DATE(`operation_time`)) AS `date` FROM `labour_insurance_operation`) AS `o` LEFT JOIN `labour_user` AS `u` ON `o`.`user_id` = `u`.`id` LEFT JOIN `labour_user_group_user` AS `gu` ON `o`.`user_id` = `gu`.`user_id` AND `gu`.`STATUS` = 0 GROUP BY `o`.`date`'
         ]
       },
       {
@@ -993,6 +1007,13 @@ describe('mysql', () => {
         sql: [
           "ALTER TABLE product MODIFY COLUMN type enum('one','two') NOT NULL AFTER name",
           "ALTER TABLE `product` MODIFY COLUMN `type` ENUM('one', 'two') NOT NULL AFTER `name`"
+        ]
+      },
+      {
+        title: 'alter table with first column',
+        sql: [
+          "ALTER TABLE product MODIFY COLUMN type enum('one','two') NOT NULL FIRST",
+          "ALTER TABLE `product` MODIFY COLUMN `type` ENUM('one', 'two') NOT NULL FIRST"
         ]
       },
       {
@@ -1016,6 +1037,288 @@ describe('mysql', () => {
           "SELECT `d`.`Fdrug_hash_id` FROM `t_xxxx` AS `d` WHERE `d`.`Fapproval_number` LIKE '\tH20190022%'"
         ]
       },
+      {
+        title: 'multiple set',
+        sql: [
+          "SET @_mystoredprocedure_0='1',@_mystoredprocedure_1='2'",
+          "SET @_mystoredprocedure_0 = '1', @_mystoredprocedure_1 = '2'"
+        ]
+      },
+      {
+        title: 'create table for key',
+        sql: [
+          `CREATE TABLE some_table (
+            col JSON,
+            KEY \`idx_col\` ((CAST(\`col\` AS CHAR(12) ARRAY)))
+          );`,
+          'CREATE TABLE `some_table` (`col` JSON, KEY idx_col ((CAST(`col` AS CHAR(12) ARRAY))))'
+        ]
+      },
+      {
+        title: 'with rollup',
+        sql: [
+          'SELECT year, country, product, SUM(profit) AS profit FROM sales GROUP BY year, country, product WITH ROLLUP;',
+          'SELECT `year`, `country`, `product`, SUM(`profit`) AS `profit` FROM `sales` GROUP BY `year`, `country`, `product` WITH ROLLUP'
+        ]
+      },
+      {
+        title: 'character set quoted ident',
+        sql: [
+          `CREATE TABLE \`Table\` (
+              TableID INTEGER PRIMARY KEY,
+              IsAbstract BOOLEAN,
+              HasOpenColumns BOOLEAN,
+              HasOpenRows BOOLEAN,
+              HasOpenSheets BOOLEAN,
+              IsNormalised BOOLEAN,
+              IsFlat BOOLEAN,
+              RowGUID VARCHAR(16)
+          ) CHARACTER SET 'UTF8';`,
+          'CREATE TABLE `Table` (`TableID` INTEGER PRIMARY KEY, `IsAbstract` BOOLEAN, `HasOpenColumns` BOOLEAN, `HasOpenRows` BOOLEAN, `HasOpenSheets` BOOLEAN, `IsNormalised` BOOLEAN, `IsFlat` BOOLEAN, `RowGUID` VARCHAR(16)) CHARACTER SET \'UTF8\''
+        ]
+      },
+      {
+        title: 'collate',
+        sql: [
+          'select * from test order by id COLLATE utf8mb4_unicode_ci',
+          'SELECT * FROM `test` ORDER BY `id` COLLATE utf8mb4_unicode_ci ASC'
+        ]
+      },
+      {
+        title: 'collate with symbol and value',
+        sql: [
+          'select * from test where id COLLATE utf8mb4_unicode_ci = abc',
+          'SELECT * FROM `test` WHERE `id` COLLATE utf8mb4_unicode_ci = `abc`'
+        ]
+      },
+      {
+        title: 'explain stmt',
+        sql: [
+          'EXPLAIN SELECT * FROM incidents where id > 10 and is_delete = 0',
+          'EXPLAIN SELECT * FROM `incidents` WHERE `id` > 10 AND `is_delete` = 0'
+        ]
+      },
+      {
+        title: 'column options order',
+        sql: [
+          "alter table a modify column b VARCHAR(200) GENERATED ALWAYS AS (json_unquote(json_extract(`json`, '$.b'))) STORED COMMENT 'some comment'",
+          "ALTER TABLE `a` MODIFY COLUMN `b` VARCHAR(200) GENERATED ALWAYS AS (json_unquote(json_extract(`json`, '$.b'))) STORED COMMENT 'some comment'"
+        ]
+      },
+      {
+        title: 'function name can be wrapped with brackets only',
+        sql: [
+          `insert into \`test\` (\`t1\`,\`t2\`,\`t3\`,\`t4\`,\`t5\`) values
+            (0,1,334,'21.42','   '),
+            (0,1,335,'23.lua',' select(\\'#\\', ...)'),
+            (0,1,334,'21.42','   ');`,
+          "INSERT INTO `test` (t1, t2, t3, t4, t5) VALUES (0,1,334,'21.42','   '), (0,1,335,'23.lua',' select(\\'#\\', ...)'), (0,1,334,'21.42','   ')"
+        ]
+      },
+      {
+        title: 'from table alias in parentheses',
+        sql: [
+          "SELECT DISTINCT `pv`.`text` as product_page_text, `pv`.`lp_url`, `pp`.`short_label` as product_item_text, `pp`.`id` as promoid, `pv`.`id` as visibility_id, `pp`.`tnc` FROM (`product_promotion` pp) JOIN `promotion_visibility` pv ON `pv`.`promotion_id`=`pp`.`id` WHERE `pv`.`property` = 'app_product_page_text' AND `pp`.`start_date` < 1724305037 AND `pp`.`end_date` > 1724305037 AND `pv`.`is_active` = 1 AND `pp`.`is_active` = 1 AND `pp`.`id` IN ('5725,8560') ORDER BY `pp`.`priority` DESC",
+          "SELECT DISTINCT `pv`.`text` AS `product_page_text`, `pv`.`lp_url`, `pp`.`short_label` AS `product_item_text`, `pp`.`id` AS `promoid`, `pv`.`id` AS `visibility_id`, `pp`.`tnc` FROM (`product_promotion` AS `pp`) INNER JOIN `promotion_visibility` AS `pv` ON `pv`.`promotion_id` = `pp`.`id` WHERE `pv`.`property` = 'app_product_page_text' AND `pp`.`start_date` < 1724305037 AND `pp`.`end_date` > 1724305037 AND `pv`.`is_active` = 1 AND `pp`.`is_active` = 1 AND `pp`.`id` IN ('5725,8560') ORDER BY `pp`.`priority` DESC",
+        ]
+      },
+      {
+        title: 'text data type with length',
+        sql: [
+          'CREATE TABLE `ys_map_info` (`detail` TEXT(65535));',
+          'CREATE TABLE `ys_map_info` (`detail` TEXT(65535))'
+        ]
+      },
+      {
+        title: 'convert to signed or unsigned',
+        sql: [
+          "SELECT * FROM `foo` WHERE CONVERT(REPLACE(id, '123', ''), SIGNED) > 0",
+          "SELECT * FROM `foo` WHERE CONVERT(REPLACE(`id`, '123', ''), SIGNED) > 0",
+        ]
+      },
+      {
+        title: 'convert additive expr',
+        sql: [
+          'select convert(a-b,DECIMAL(10,2)) as a from test',
+          'SELECT CONVERT(`a` - `b`, DECIMAL(10, 2)) AS `a` FROM `test`'
+        ]
+      },
+      {
+        title: 'bit data type',
+        sql: [
+          'CREATE TABLE visits (done bit);',
+          'CREATE TABLE `visits` (`done` BIT)'
+        ]
+      },
+      {
+        title: 'column name start with digit',
+        sql: [
+          'select 4k_pic from table1',
+          'SELECT `4k_pic` FROM `table1`'
+        ]
+      },
+      {
+        title: 'create table not null position',
+        sql: [
+          `create table \`d\` (
+              \`id\` int (11) primary key auto_increment not null,
+              \`d_name\` varchar(15) not null,
+              \`d_id\` int(11) generated always as (cast(trim(d_name) as signed) ) virtual not null
+          );`,
+          'CREATE TABLE `d` (`id` INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY, `d_name` VARCHAR(15) NOT NULL, `d_id` INT(11) GENERATED ALWAYS AS (CAST(TRIM(`d_name`) AS SIGNED)) VIRTUAL NOT NULL)'
+        ]
+      },
+      {
+        title: 'lateral derived tables',
+        sql: [
+          'SELECT * FROM table1, LATERAL (SELECT * FROM table2 WHERE table2.id = table1.id) AS subquery',
+          'SELECT * FROM `table1`, LATERAL (SELECT * FROM `table2` WHERE `table2`.`id` = `table1`.`id`) AS `subquery`'
+        ]
+      },
+      {
+        title: 'collate expression with column',
+        sql: [
+          'SELECT users.id FROM users LEFT JOIN orders ON users.id COLLATE utf8mb4_general_ci = orders.user_id;',
+          'SELECT `users`.`id` FROM `users` LEFT JOIN `orders` ON `users`.`id` COLLATE utf8mb4_general_ci = `orders`.`user_id`',
+        ]
+      },
+      {
+        title: 'trim expr from',
+        sql: [
+          `create table \`table1\` (
+              \`id\` int primary key not null,
+              \`data\` varchar(255) not null,
+              \`removed_id\` varchar(55) GENERATED ALWAYS AS (
+                    trim(
+                        trailing concat('.',substring_index(\`data\`,'.',-(3)))
+                        from
+                        trim(leading concat(substring_index(\`data\`,'.',3),'.') from \`data\`)
+                    )
+                ) STORED
+          );`,
+          "CREATE TABLE `table1` (`id` INT NOT NULL PRIMARY KEY, `data` VARCHAR(255) NOT NULL, `removed_id` VARCHAR(55) GENERATED ALWAYS AS (TRIM(TRAILING concat('.', substring_index(`data`, '.', -(3))) FROM TRIM(LEADING concat(substring_index(`data`, '.', 3), '.') FROM `data`))) STORED)"
+        ]
+      },
+      {
+        title: 'assign with alias',
+        sql: [
+          'SELECT T2.id FROM ( SELECT @r AS _id, (SELECT @r := parent_id FROM product_category WHERE id = _id AND is_active = 1) AS parent_id, @l := @l + 1 AS lvl FROM (SELECT @r := :catId, @l := 0) vars, product_category h WHERE @r <> 0) T1 JOIN product_category T2 ON T1._id = T2.id ORDER BY T1.lvl DESC;',
+          'SELECT `T2`.`id` FROM (SELECT @r AS `_id`, (SELECT @r := `parent_id` FROM `product_category` WHERE `id` = `_id` AND `is_active` = 1) AS `parent_id`, @l := @l + 1 AS `lvl` FROM (SELECT @r := :catId, @l := 0) AS `vars`, `product_category` AS `h` WHERE @r <> 0) AS `T1` INNER JOIN `product_category` AS `T2` ON `T1`.`_id` = `T2`.`id` ORDER BY `T1`.`lvl` DESC',
+        ]
+      },
+      {
+        title: 'table ref list with join after parentheses',
+        sql: [
+          'select * from (`table`, `table2` as `t2`, `jacob` as `jacobian`) left join`table3` as `t3` on`t2`.`id` = `t3`.`table2_id`',
+          'SELECT * FROM (`table`, `table2` AS `t2`, `jacob` AS `jacobian`) LEFT JOIN `table3` AS `t3` ON `t2`.`id` = `t3`.`table2_id`'
+        ]
+      },
+      {
+        title: 'newline in string',
+        sql: [
+          `SELECT "asd
+          "`,
+          `SELECT "asd
+          "`
+        ]
+      },
+      {
+        title: 'join using quoted ident',
+        sql: [
+          `SELECT * FROM employees
+            inner join salaries using (emp_no)
+          order by emp_no desc;
+
+          SELECT * FROM \`employees\`
+          INNER JOIN \`salaries\` USING (\`emp_no\`)
+          ORDER BY \`emp_no\` DESC;`,
+          'SELECT * FROM `employees` INNER JOIN `salaries` USING (emp_no) ORDER BY `emp_no` DESC ; SELECT * FROM `employees` INNER JOIN `salaries` USING (`emp_no`) ORDER BY `emp_no` DESC'
+        ]
+      },
+      {
+        titel: 'alter table truncate partiton',
+        sql: [
+          'ALTER TABLE test_table TRUNCATE PARTITION p202503,p202504;',
+          'ALTER TABLE `test_table` TRUNCATE PARTITION `p202503`, `p202504`'
+        ]
+      },
+      {
+        title: 'alter table add partition',
+        sql: [
+          'ALTER TABLE test_table ADD PARTITION (PARTITION p202503 VALUES LESS THAN (20250301), PARTITION p202504 VALUES LESS THAN (20250401));',
+          'ALTER TABLE `test_table` ADD PARTITION (PARTITION p202503 VALUES LESS THAN (20250301), PARTITION p202504 VALUES LESS THAN (20250401))'
+        ]
+      },
+      {
+        title: 'transaction stmt',
+        sql: [
+          'start transaction',
+          'START TRANSACTION'
+        ]
+      },
+      {
+        title: 'keyword in database and table name',
+        sql: [
+          'SELECT * FROM system.tables;',
+          'SELECT * FROM `system`.`tables`'
+        ]
+      },
+      {
+        title: 'interval expr with parentheses',
+        sql: [
+          'SELECT * FROM T WHERE date BETWEEN start AND start + INTERVAL (duration + 1) DAY',
+          'SELECT * FROM `T` WHERE `date` BETWEEN `start` AND `start` + INTERVAL (`duration` + 1) DAY'
+        ]
+      },
+      {
+        title: 'join using clause',
+        sql: [
+          'SELECT * FROM A JOIN (B JOIN C USING (x)) USING (y)',
+          'SELECT * FROM `A` INNER JOIN (`B` INNER JOIN `C` USING (x)) USING (y)'
+        ]
+      },
+      {
+        title: 'join on clause',
+        sql: [
+          'SELECT * FROM A JOIN (B JOIN C ON B.x = C.x) ON A.y = C.y',
+          'SELECT * FROM `A` INNER JOIN (`B` INNER JOIN `C` ON `B`.`x` = `C`.`x`) ON `A`.`y` = `C`.`y`'
+        ]
+      },
+      {
+        title: 'arithmetic and in expr',
+        sql: [
+          'SELECT * FROM T1 WHERE a = b IN (SELECT flag FROM T2)',
+          'SELECT * FROM `T1` WHERE `a` = `b` IN (SELECT `flag` FROM `T2`)'
+        ]
+      },
+      {
+        title: 'with cte recursive',
+        sql: [
+          `WITH RECURSIVE
+          T AS (
+              SELECT 'foo'
+          ),
+          U AS (
+              SELECT 'bar'
+          )
+          SELECT * FROM T, U`,
+          "WITH RECURSIVE `T` AS (SELECT 'foo'), `U` AS (SELECT 'bar') SELECT * FROM `T`, `U`"
+        ]
+      },
+      {
+        title: 'xor operator',
+        sql: [
+          "SELECT * FROM T WHERE a LIKE 'foobar%' XOR c = d",
+          "SELECT * FROM `T` WHERE `a` LIKE 'foobar%' XOR `c` = `d`"
+        ]
+      },
+      {
+        title: 'support accentuated identifiers',
+        sql: [
+          "SELECT crème AS brûlée FROM café WHERE théâtre = 'Molière'",
+          "SELECT `crème` AS `brûlée` FROM `café` WHERE `théâtre` = 'Molière'"
+        ]
+      },
     ]
     SQL_LIST.forEach(sqlInfo => {
       const { title, sql } = sqlInfo
@@ -1029,10 +1332,10 @@ describe('mysql', () => {
 
     it('should throw error when args is not right', () => {
       let sql = `select convert(json_unquote(json_extract('{"thing": "252"}', "$.thing")));`
-      expect(parser.astify.bind(parser, sql)).to.throw('Expected "!=", "#", "%", "&", "&&", "*", "+", ",", "-", "--", "/", "/*", "<", "<<", "<=", "<>", "=", ">", ">=", ">>", "AND", "BETWEEN", "IN", "IS", "LIKE", "NOT", "ON", "OR", "OVER", "REGEXP", "RLIKE", "USING", "XOR", "^", "div", "|", "||", or [ \\t\\n\\r] but ")" found.')
-      expect(parser.astify.bind(parser, 'select convert("");')).to.throw('Expected "!=", "#", "%", "&", "&&", "*", "+", ",", "-", "--", "/", "/*", "<", "<<", "<=", "<>", "=", ">", ">=", ">>", "AND", "BETWEEN", "COLLATE", "IN", "IS", "LIKE", "NOT", "OR", "REGEXP", "RLIKE", "USING", "XOR", "^", "div", "|", "||", or [ \\t\\n\\r] but ")" found.')
+      expect(parser.astify.bind(parser, sql)).to.throw('Expected "!=", "#", "#-", "#>", "#>>", "%", "&", "&&", "*", "+", ",", "-", "--", "->", "->>", "/", "/*", "<", "<<", "<=", "<>", "<@", "=", ">", ">=", ">>", "?", "?&", "?|", "@>", "AND", "BETWEEN", "IN", "IS", "LIKE", "NOT", "ON", "OR", "OVER", "REGEXP", "RLIKE", "USING", "XOR", "^", "div", "mod", "|", "||", or [ \\t\\n\\r] but ")" found.')
+      expect(parser.astify.bind(parser, 'select convert("");')).to.throw('Expected "!=", "#", "#-", "#>", "#>>", "%", "&", "&&", "*", "+", ",", "-", "--", "->", "->>", "/", "/*", "<", "<<", "<=", "<>", "<@", "=", ">", ">=", ">>", "?", "?&", "?|", "@>", "AND", "BETWEEN", "COLLATE", "IN", "IS", "LIKE", "NOT", "OR", "REGEXP", "RLIKE", "USING", "XOR", "^", "div", "mod", "|", "||", or [ \\t\\n\\r] but ")" found.')
       sql = 'SELECT AVG(Quantity,age) FROM table1;'
-      expect(parser.astify.bind(parser, sql)).to.throw('Expected "!=", "#", "%", "&", "&&", "(", ")", "*", "+", "-", "--", "->", "->>", ".", "/", "/*", "<", "<<", "<=", "<>", "=", ">", ">=", ">>", "BETWEEN", "IN", "IS", "LIKE", "NOT", "REGEXP", "RLIKE", "XOR", "^", "div", "|", "||", [ \\t\\n\\r], [A-Za-z0-9_$\\x80-￿], or [A-Za-z0-9_:] but "," found.')
+      expect(parser.astify.bind(parser, sql)).to.throw('Expected "!=", "#", "#-", "#>", "#>>", "%", "&", "&&", "(", ")", "*", "+", "-", "--", "->", "->>", ".", "/", "/*", "<", "<<", "<=", "<>", "<@", "=", ">", ">=", ">>", "?", "?&", "?|", "@>", "BETWEEN", "COLLATE", "IN", "IS", "LIKE", "NOT", "REGEXP", "RLIKE", "XOR", "^", "div", "mod", "|", "||", [ \\t\\n\\r], [A-Za-z0-9_$\\x80-￿], or [A-Za-z0-9_:一-龥À-ſ] but "," found')
     })
 
     it('should join multiple table with comma', () => {
@@ -1161,6 +1464,26 @@ describe('mysql', () => {
       it('should return empty when into is null', () => {
         expect(selectIntoToSQL()).to.be.undefined
         expect(selectIntoToSQL({})).to.be.undefined
+      })
+    })
+    describe('load data', () => {
+      it('should support load data', () => {
+        let sql = `LOAD DATA LOCAL INFILE "mycsv.csv" INTO TABLE mytable FIELDS TERMINATED BY ' ^' IGNORE 1 LINES;`
+        let parsedSQL = `LOAD DATA LOCAL INFILE "mycsv.csv" INTO TABLE \`mytable\` FIELDS TERMINATED BY ' ^' IGNORE 1 LINES`
+        expect(getParsedSql(sql)).to.equal(parsedSQL)
+        expect(getParsedSql(sql, mariadb)).to.equal(parsedSQL)
+        sql = `LOAD DATA LOW_PRIORITY LOCAL INFILE '/tmp/test.txt' REPLACE INTO TABLE test FIELDS TERMINATED BY '\t' ENCLOSED BY '' ESCAPED BY '\\' LINES TERMINATED BY '\n' STARTING BY ''`
+        parsedSQL = "LOAD DATA LOW_PRIORITY LOCAL INFILE '/tmp/test.txt' REPLACE INTO TABLE `test` FIELDS TERMINATED BY '\t' ENCLOSED BY '' ESCAPED BY '\\' LINES STARTING BY '' TERMINATED BY '\n'"
+        expect(getParsedSql(sql)).to.equal(parsedSQL)
+        expect(getParsedSql(sql, mariadb)).to.equal(parsedSQL)
+        sql = `LOAD DATA LOW_PRIORITY LOCAL INFILE '/tmp/test.txt' REPLACE INTO TABLE test FIELDS TERMINATED BY '\t' OPTIONALLY ENCLOSED BY '' ESCAPED BY '\\' IGNORE 1 LINES (column1, @var1) SET column2 = @var1/100;`
+        parsedSQL = "LOAD DATA LOW_PRIORITY LOCAL INFILE '/tmp/test.txt' REPLACE INTO TABLE \`test\` FIELDS TERMINATED BY '\t' OPTIONALLY ENCLOSED BY '' ESCAPED BY '\\' IGNORE 1 LINES (`column1`, @var1) SET `column2` = @var1 / 100"
+        expect(getParsedSql(sql)).to.equal(parsedSQL)
+        expect(getParsedSql(sql, mariadb)).to.equal(parsedSQL)
+        sql = `LOAD DATA INFILE 'file.txt' INTO TABLE t1 (column1, column2) SET column3 = CURRENT_TIMESTAMP;`
+        parsedSQL = "LOAD DATA INFILE 'file.txt' INTO TABLE `t1` (`column1`, `column2`) SET `column3` = CURRENT_TIMESTAMP"
+        expect(getParsedSql(sql)).to.equal(parsedSQL)
+        expect(getParsedSql(sql, mariadb)).to.equal(parsedSQL)
       })
     })
   })
