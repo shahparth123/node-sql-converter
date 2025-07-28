@@ -7,9 +7,9 @@ const CHARS_ESCAPE_MAP = {
   '\n'   : '\\n',
   '\r'   : '\\r',
   '\x1a' : '\\Z',
-  '"'    : '\\"',
-  '\''   : '\\\'',
-  '\\'   : '\\\\',
+  //'"'    : '\\"',
+  //'\''   : '\\\'',
+  //'\\'   : '\\\\',
 }
 const ID_GLOBAL_REGEXP = /`/g
 const QUAL_GLOBAL_REGEXP = /\./g
