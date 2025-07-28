@@ -1,7 +1,8 @@
 {
-  "name": "node-sql-parser",
-  "version": "5.3.10",
-  "description": "simple node sql parser",
+
+  "name": "node-sql-converter",
+  "version": "5.3.11",
+  "description": "node sql converter",
   "main": "index.js",
   "types": "types.d.ts",
   "scripts": {
@@ -17,7 +18,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/taozhi8833998/node-sql-parser.git"
+    "url": "git+https://github.com/shahparth123/node-sql-converter.git"
   },
   "pre-commit": "coverLocal",
   "keywords": [
@@ -28,10 +29,11 @@
     "nodejs",
     "node-parser",
     "node-sql-parser",
+    "node-sql-converter",
     "ast",
     "sql-ast"
   ],
-  "author": "taozhi8833998 <taozhi8833998@163.com>",
+  "author": "Parth Shah <parth@shahparth.in>",
   "files": [
     "ast/",
     "build",
@@ -47,13 +49,13 @@
   ],
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/taozhi8833998/node-sql-parser/issues"
+    "url": "https://github.com/shahparth123/node-sql-converter/issues"
   },
-  "homepage": "https://github.com/taozhi8833998/node-sql-parser#readme",
+  "homepage": "https://github.com/shahparth123/node-sql-converter#readme",
   "engines": {
     "node": ">=8"
   },
-  "devDependencies": {
+ "devDependencies": {
     "@babel/cli": "^7.5.5",
     "@babel/core": "^7.10.5",
     "@babel/plugin-proposal-object-rest-spread": "^7.5.5",
