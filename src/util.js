@@ -1,19 +1,19 @@
 import { columnToSQL, columnRefToSQL, columnOrderToSQL } from './column'
 
-const CHARS_ESCAPE_MAP = {
-  '\0'   : '\\0',
-  '\b'   : '\\b',
-  '\t'   : '\\t',
-  '\n'   : '\\n',
-  '\r'   : '\\r',
-  '\x1a' : '\\Z',
-  //'"'    : '\\"',
-  //'\''   : '\\\'',
-  //'\\'   : '\\\\',
-}
-const ID_GLOBAL_REGEXP = /`/g
-const QUAL_GLOBAL_REGEXP = /\./g
-const CHARS_GLOBAL_REGEXP = /[\0\b\t\n\r\x1a\"\'\\]/g
+// const CHARS_ESCAPE_MAP = {
+//   '\0'   : '\\0',
+//   '\b'   : '\\b',
+//   '\t'   : '\\t',
+//   '\n'   : '\\n',
+//   '\r'   : '\\r',
+//   '\x1a' : '\\Z',
+//   //'"'    : '\\"',
+//   //'\''   : '\\\'',
+//   //'\\'   : '\\\\',
+// }
+// const ID_GLOBAL_REGEXP = /`/g
+// const QUAL_GLOBAL_REGEXP = /\./g
+// const CHARS_GLOBAL_REGEXP = /[\0\b\t\n\r\x1a\"\'\\]/g
 
 const DEFAULT_OPT = {
   database     : PARSER_NAME || 'mysql',
@@ -101,79 +101,80 @@ function replaceParamsInner(ast, keys) {
   return ast
 }
 
-function escapeString(val) {
-  let chunkIndex = CHARS_GLOBAL_REGEXP.lastIndex = 0
-  let escapedVal = ''
-  let match
+// function escapeString(val) {
+//   let chunkIndex = CHARS_GLOBAL_REGEXP.lastIndex = 0
+//   let escapedVal = ''
+//   let match
 
-  while ((match = CHARS_GLOBAL_REGEXP.exec(val))) {
-    escapedVal += val.slice(chunkIndex, match.index) + CHARS_ESCAPE_MAP[match[0]]
-    chunkIndex = CHARS_GLOBAL_REGEXP.lastIndex
-  }
+//   while ((match = CHARS_GLOBAL_REGEXP.exec(val))) {
+//     escapedVal += val.slice(chunkIndex, match.index) + CHARS_ESCAPE_MAP[match[0]]
+//     chunkIndex = CHARS_GLOBAL_REGEXP.lastIndex
+//   }
 
-  if (chunkIndex === 0) {
-    // Nothing was escaped
-    return String(val)
-  }
+//   if (chunkIndex === 0) {
+//     // Nothing was escaped
+//     return String(val)
+//   }
 
-  if (chunkIndex < val.length) {
-    return String(escapedVal + val.slice(chunkIndex))
-  }
+//   if (chunkIndex < val.length) {
+//     return String(escapedVal + val.slice(chunkIndex))
+//   }
 
-  return String(escapedVal)
-}
+//   return String(escapedVal)
+// }
 
-function bufferToString(buffer) {
-  return 'X' + escapeString(buffer.toString('hex'))
-}
+// function bufferToString(buffer) {
+//   return 'X' + escapeString(buffer.toString('hex'))
+// }
 
 function escape(str) {
-  if (str === null) {
-    return 'NULL'
-  }
-  switch (typeof str) {
-    case 'boolean':
-      return (str) ? 'true' : 'false'
-    case 'number':
-      return String(str) + ''
-    case 'object':
-      if (Buffer.isBuffer(str)) {
-        return bufferToString(str)
-      } else if (typeof str.toSqlString === 'function') {
-        return String(str.toSqlString())
-      }
-      return objectToValues(str)
-    default:
-      return escapeString(str)
-  }
+  return str;
+  // if (str === null) {
+  //   return 'NULL'
+  // }
+  // switch (typeof str) {
+  //   case 'boolean':
+  //     return (str) ? 'true' : 'false'
+  //   case 'number':
+  //     return String(str) + ''
+  //   case 'object':
+  //     if (Buffer.isBuffer(str)) {
+  //       return bufferToString(str)
+  //     } else if (typeof str.toSqlString === 'function') {
+  //       return String(str.toSqlString())
+  //     }
+  //     return objectToValues(str)
+  //   default:
+  //     return escapeString(str)
+  // }
 }
 
-function escapeId(val) {
-  if (Array.isArray(val)) {
-    let sql = ''
-    for (let i = 0; i < val.length; i++) {
-      sql += (i === 0 ? '' : ', ') + escapeId(val[i])
-    }
-    return sql
-  }
-  return '`' + String(val).replace(ID_GLOBAL_REGEXP, '``').replace(QUAL_GLOBAL_REGEXP, '`.`') + '`'
-}
+// function escapeId(val) {
+//   if (Array.isArray(val)) {
+//     let sql = ''
+//     for (let i = 0; i < val.length; i++) {
+//       sql += (i === 0 ? '' : ', ') + escapeId(val[i])
+//     }
+//     return sql
+//   }
+//   return '`' + String(val).replace(ID_GLOBAL_REGEXP, '``').replace(QUAL_GLOBAL_REGEXP, '`.`') + '`'
+// }
 
-function objectToValues(obj) {
-  let sql = ''
+// function objectToValues(obj) {
+//   let sql = ''
 
-  for (const key in obj) {
-    const val = obj[key]
+//   for (const key in obj) {
+//     const val = obj[key]
 
-    if (typeof val === 'function') {
-      continue
-    }
+//     if (typeof val === 'function') {
+//       continue
+//     }
 
-    sql += (sql.length === 0 ? '' : ', ') + escapeId(key) + ' = ' + escape(val)
-  }
+//     sql += (sql.length === 0 ? '' : ', ') + escapeId(key) + ' = ' + escape(val)
+//   }
 
-  return sql
-}
+//   return sql
+// }
 
 function getParserOpt() {
   return parserOpt
